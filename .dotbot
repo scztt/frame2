@@ -1,0 +1,5 @@
+- defaults:
+    NSGlobalDomain:
+      AppleShowScrollBars: "Always"
+- shell:
+    - ["brew install fastapi typer dotbot", "Installing dependencies"]

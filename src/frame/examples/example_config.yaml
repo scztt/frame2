@@ -1,0 +1,55 @@
+path: /Users/chrysanth/Documents/_code/CoreStudioBruxelles
+name: "Core Core Liverpool"
+model:
+  "project.status":
+    name: "Status"
+    get:
+      type: shell
+      renderer: status
+      cmd: ps aux | grep -v grep | grep sclang
+      parser: { type: "detect", pattern: "sclang" }
+
+  "project.uptime":
+    name: "Uptime"
+    get:
+      type: shell
+      cmd: "uptime"
+      parser: { type: "regex", pattern: "up (.*?),", group: 1 }
+
+  "project.cpu":
+    name: "CPU Usage"
+    get:
+      type: shell
+      cmd: 'ps -A -o %cpu | awk ''{s+=$1} END {print s "%"}'''
+
+  "project.system_information":
+    name: "System Information"
+    get:
+      type: shell
+      cmd:
+        [
+          "system_profiler",
+          "SPHardwareDataType",
+          "SPSoftwareDataType",
+          "SPStorageDataType",
+          "-json",
+        ]
+      parser: "json"
+      renderer: "json"
+
+  "project.screenshot":
+    name: "Screenshot"
+    get:
+      type: screenshot
+      renderer: image
+
+actions:
+  "restart":
+    type: sequence
+    actions: [{ type: "stop" }, { type: "start" }]
+  "stop":
+    type: shell
+    cmd: ./daemons/disable_autoplay.command
+  "start":
+    type: shell
+    cmd: ./daemons/enable_autoplay.command

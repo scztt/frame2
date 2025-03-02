@@ -1,0 +1,11 @@
+Metadata-Version: 2.2
+Name: frame
+Version: 0.1.0
+Summary: Provisioning, automation, and remote management for installations and exhibitions.
+Author-email: Scott Carver <scott@artificia.org>
+Requires-Python: >=3.13
+License-File: LICENSE
+Requires-Dist: fastapi>=0.115.10
+Requires-Dist: typer>=0.15.2
+Requires-Dist: jinja2>=3.1.5
+Requires-Dist: uvicorn>=0.34.0

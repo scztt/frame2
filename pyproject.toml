@@ -1,0 +1,40 @@
+[project]
+name = "frame"
+version = "0.1.0"
+description = "Provisioning, automation, and remote management for installations and exhibitions."
+authors = [
+    { name = "Scott Carver", email = "scott@artificia.org" },
+    { name = "scott carver", email = "scott@artificia.org" },
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi>=0.115.10",
+    "typer>=0.15.2",
+    "jinja2>=3.1.5",
+    "uvicorn>=0.34.0",
+    "schedule>=1.2.2",
+]
+readme = "README.md"
+license = { text = "MIT" }
+
+[tool.setuptools]
+packages = ["src/frame"]
+
+[tool.black]
+line-length = 88
+
+[tool.pdm]
+distribution = true
+[build-system]
+requires = ["flit_core>=3.2,<4"]
+build-backend = "flit_core.buildapi"
+
+[dependency-groups]
+dev = [
+    "black>=25.1.0",
+    "pytest>=8.3.4",
+    "flake8>=7.1.2",
+    "httpx>=0.28.1",
+    "dotbot>=1.21.0",
+    "pylance>=0.23.2",
+]
