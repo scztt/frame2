@@ -1,4 +1,5 @@
 import json
+from typing import Any, Dict
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from jinja2 import Template
@@ -37,8 +38,6 @@ def ordered_yaml_load(stream):
 app = FastAPI()
 config = Config(ordered_yaml_load(open("src/frame/examples/example_config.yaml")))
 
-app = FastAPI()
-
 
 async def get_system_info():
     """Runs system_profiler asynchronously and returns the parsed JSON output."""
@@ -68,37 +67,58 @@ async def system_info():
 
 
 def make_endpoints():
-    endpoints = []
+    endpoints_future = asyncio.Future[list[Dict[str, Any]]]()
 
-    for property_name in config.get_properties():
-        property = config.get_property(property_name)
-        # Convert dot notation to URL path notation
-        url_path = property_name.replace(".", "/")
-        endpoint_path = f"/model/{url_path}"
+    def make(_):
+        endpoints: list[Dict[str, Any]] = []
 
-        @app.get(endpoint_path, response_class=HTMLResponse)
-        async def get_property_value(property_name=property_name):
-            result = await config.get_rendered(property_name)
-            return result
+        for property_name in config.get_properties():
+            property = config.get_property(property_name)
+            # Convert dot notation to URL path notation
+            url_path = property_name.replace(".", "/")
+            endpoint_path = f"/model/{url_path}"
 
-        # Add to list of endpoints
-        endpoints.append(
-            {
-                "path": endpoint_path,
-                "name": property.display_name,
-                "render_func": property.renderer.render_list_item,
-            }
-        )
+            @app.get(endpoint_path, response_class=HTMLResponse)
+            async def get_property_value(property_name=property_name):
+                stream = config.get_rendered_update_stream(property_name)
+                result = await anext(stream)
+                asyncio.create_task(stream.aclose())
+                return result
 
-    return endpoints
+            @app.get(endpoint_path + "/streaming")
+            async def get_property_stream(property_name=property_name):
+                return StreamingResponse(
+                    config.get_rendered_update_stream(property_name),
+                    media_type="text/event-stream",
+                )
+
+            if property.update_time:
+                config.auto_update(property_name, property.update_time)
+
+            # Add to list of endpoints
+            endpoints.append(
+                {
+                    "path": endpoint_path,
+                    "name": property.display_name,
+                    "render_func": property.renderer.render_list_item,
+                }
+            )
+
+        endpoints_future.set_result(endpoints)
+
+    config.done().add_done_callback(make)
+
+    return endpoints_future
 
 
-endpoints = make_endpoints()
+endpoints_future = make_endpoints()
 
 
 @app.get("/", response_class=HTMLResponse)
 async def home():
     # Define endpoints and their display names
+
+    endpoints = await endpoints_future
 
     return f"""
     <!DOCTYPE html>
@@ -174,6 +194,7 @@ async def home():
                 font-size: 12px;
                 color: var(--text-secondary);
                 transition: transform 0.3s ease;
+                transform-origin: 25% 50%;
             }}
             
             .header h3 {{
@@ -212,6 +233,7 @@ async def home():
             
             .expanded .toggle-icon {{
                 transform: rotate(90deg);
+                transform-origin: 25% 50%;
             }}
             
             .expanded .output-container {{
@@ -224,7 +246,8 @@ async def home():
             
             .screenshot-img {{ 
                 width: 400px; 
-                cursor: pointer; 
+                cursor: pointer;
+                transform-origin: center center;
                 # transition: all 0.3s ease; 
             }}
             
@@ -233,6 +256,7 @@ async def home():
                 top: 50%;
                 left: 50%;
                 transform: translate(-50%, -50%);
+                transform-origin: center center;
                 max-width: 90%;
                 max-height: 90vh;
                 width: auto;

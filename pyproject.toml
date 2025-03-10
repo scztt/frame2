@@ -8,9 +8,9 @@ authors = [
 ]
 requires-python = ">=3.13"
 dependencies = [
-    "fastapi>=0.115.10",
+    "fastapi>=0.115.11",
     "typer>=0.15.2",
-    "jinja2>=3.1.5",
+    "jinja2>=3.1.6",
     "uvicorn>=0.34.0",
     "schedule>=1.2.2",
 ]
@@ -21,10 +21,11 @@ license = { text = "MIT" }
 packages = ["src/frame"]
 
 [tool.black]
-line-length = 88
+line-length = 200
 
 [tool.pdm]
 distribution = true
+
 [build-system]
 requires = ["flit_core>=3.2,<4"]
 build-backend = "flit_core.buildapi"
@@ -32,9 +33,14 @@ build-backend = "flit_core.buildapi"
 [dependency-groups]
 dev = [
     "black>=25.1.0",
-    "pytest>=8.3.4",
+    "pytest>=8.3.5",
     "flake8>=7.1.2",
     "httpx>=0.28.1",
     "dotbot>=1.21.0",
     "pylance>=0.23.2",
 ]
+
+[tool.uvicorn]
+reload = true
+reload-include = ["*.py", "*.yaml"]
+reload-dir = ["src/frame/examples"]

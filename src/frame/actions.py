@@ -1,8 +1,7 @@
 from typing import Callable, Dict, Any
+from frame.notification_targets import make_notification_target
 from frame.shell import run_command
 from frame.parsers import make_parser
-
-actions = {}
 
 
 class ActionBase:
@@ -10,16 +9,27 @@ class ActionBase:
         super().__init_subclass__(**kwargs)
         actions[name] = cls
 
+    def __init__(self, settings: Dict[str, Any]) -> None:
+        pass
+
     async def call(self, settings: Dict[str, Any]) -> Any:
         raise NotImplementedError("Subclasses must implement this method")
 
 
-def make_action(settings: str | Dict[str, Any]):
+actions: Dict[str, type] = {}
+
+
+def make_action(settings: str | Dict[str, Any]) -> ActionBase:
     if isinstance(settings, str):
         settings = {"type": settings}
 
     type = settings.get("type")
-    return actions.get(type)(settings)
+    cls = actions.get(type)
+
+    if cls is None:
+        raise ValueError(f"No action registered with name: {type}")
+
+    return cls(settings)
 
 
 ############################################################
@@ -27,6 +37,7 @@ def make_action(settings: str | Dict[str, Any]):
 ############################################################
 class ShellAction(ActionBase, name="shell"):
     def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
         self.command = settings["cmd"]
         self.parser = make_parser(settings.get("parser", "string"))
 
@@ -36,13 +47,28 @@ class ShellAction(ActionBase, name="shell"):
         return result
 
 
-class SequenceAction(ActionBase, name="sequence"):
+class NotificationAction(ActionBase, name="notification"):
     def __init__(self, settings: Dict[str, Any]):
-        self.actions = settings["actions"]
+        super().__init__(settings)
+        self.targets = [
+            make_notification_target(target) for target in settings.get("targets", [])
+        ]
+        self.message = settings.get("message")
 
-    async def call(
-        self, settings: Dict[str, Any], find_action: Callable[[str], ActionBase]
-    ) -> Any:
+    async def call(self, settings: Dict[str, Any]) -> Any:
+        print(self.message)
+        return None
+
+
+class SequenceAction(ActionBase, name="sequence"):
+    def __init__(
+        self, settings: Dict[str, Any], get_action: Callable[[str], ActionBase]
+    ):
+        super().__init__(settings)
+        self.actions = settings["actions"]
+        self.get_action = get_action
+
+    async def call(self, settings: Dict[str, Any]) -> Any:
         for action in self.actions:
-            await find_action(action)(settings)
+            await self.get_action(action).call(settings)
         return None

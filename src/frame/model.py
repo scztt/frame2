@@ -1,68 +1,209 @@
-from typing import Any, Dict, List
+import asyncio
+from copy import deepcopy
+from queue import Queue
+from sys import settrace
+from typing import Any, Callable, Dict, List, Tuple
 from frame.actions import ActionBase, make_action
 from frame.values import ValueDelegate, make_value
 
 
+State = Dict[str, Any]
+
+Selector = Callable[[State], Any]
+Callback = Callable[[Any], None]
+
+
+class Trigger:
+    class Subscription:
+        trigger: "Trigger"
+        callback: Callback
+
+        def __init__(self, trigger: "Trigger", callback: Callback):
+            self.trigger = trigger
+            self.callback = callback
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            if self.callback in self.trigger.subscribers:
+                self.trigger.subscribers.remove(self.callback)
+
+        def unsubscribe(self):
+            if self.callback in self.trigger.subscribers:
+                self.trigger.subscribers.remove(self.callback)
+
+    selector: Selector
+    subscribers: List[Callback]
+
+    def __init__(self, selector: Selector):
+        self.selector = selector
+        self.subscribers: List[Callback] = []
+
+    def subscribe(self, callback: Callback) -> Subscription:
+        self.subscribers.append(callback)
+        return self.Subscription(self, callback)
+
+    def update(self, old_model: State, new_model: State):
+        new_value = self.selector(new_model)
+        old_value = self.selector(old_model)
+        if new_value != old_value:
+            for subscriber in self.subscribers:
+                subscriber(new_value)
+
+
 class Config:
-    model: Dict[str, ValueDelegate]
-    model_order: List[str]
-    actions: Dict[str, ActionBase]
     project_name: str
 
-    def __init__(self, config: dict):
-        self.path = config.get("path")
-        self.settings = self.parse_settings(config.get("settings"))
-        (self.model, self.model_order) = self.parse_model(config.get("model"))
-        self.actions = self.parse_actions(config.get("actions"))
-        self.project_name = config.get("name")
+    state: State
+    state_order: List[str]
+    delegates: Dict[str, ValueDelegate]
+    actions: Dict[str, ActionBase]
+    triggers: List[Trigger] = []
+    update_tasks: Dict[str, asyncio.Task[Any]] = {}
 
-    def parse_settings(self, settings: dict) -> Dict[str, Any]:
+    class Mutable:
+        config: "Config"
+        model: Dict[str, ValueDelegate]
+
+        def __init__(self, config: "Config"):
+            self.config = config
+            self.model = deepcopy(config.state)
+
+        def __enter__(self):
+            return self.model
+
+        def __exit__(self, exc_type, exc_value, traceback):  # type: ignore
+            self.config.update(self.model)
+
+    def __init__(self, config: Dict[str, Any]):
+        self.path = config.get("path")
+        self.settings = self.parse_settings(config.get("settings", {}))
+        (self.delegates, self.state_order) = self.parse_model(config.get("model", {}))
+        self.state = {name: None for name, delegate in self.delegates.items()}
+        self.actions = self.parse_actions(config.get("actions", {}))
+        self.project_name = config.get("name", "Untitled Project")
+
+        # ...update all values...
+        self.ready = self.pull(*self.state_order)
+
+    def done(self):
+        return asyncio.ensure_future(self.ready)
+
+    ##########################################################################
+    # PARSING
+    ##########################################################################
+    def parse_settings(self, settings: Dict[str, Any]) -> Dict[str, Any]:
         return settings
 
-    def parse_model(self, model_config: dict) -> Dict[str, Any]:
-        model_order = []
-        model: Dict[str, ValueDelegate] = {}
+    def parse_model(
+        self, model_config: Dict[str, Any]
+    ) -> Tuple[Dict[str, Any], List[str]]:
+        model_order: List[str] = []
+        delegates: Dict[str, ValueDelegate] = {}
 
         for name, value_desc in model_config.items():
-            value = make_value(
-                name=name,
-                display_name=value_desc.get("name", name),
-                get_settings=value_desc.get("get"),
-                set_settings=value_desc.get("set"),
-            )
+            value = make_value(name, value_desc)
             model_order.append(name)
-            model[name] = value
+            delegates[name] = value
 
-        return (model, model_order)
+        return (delegates, model_order)
 
-    def parse_actions(self, action_config: dict) -> Dict[str, Any]:
-        actions = {}
+    def parse_actions(self, action_config: Dict[str, Any]):
+        actions: Dict[str, ActionBase] = {}
 
         for name, action_desc in action_config.items():
             actions[name] = make_action(action_desc)
 
         return actions
 
+    ##########################################################################
+    # STATE
+    ##########################################################################
+    def update(self, new_model: Dict[str, ValueDelegate]):
+        old_model = self.state
+        self.state = new_model
+        for trigger in self.triggers:
+            trigger.update(old_model, new_model)
+
+    def mutable(self):
+        return self.Mutable(self)
+
+    async def pull_task(self, key: str):
+        value = await self.delegates[key].get()
+        with self.mutable() as m:
+            m[key] = value
+
+    async def pull(self, *keys: str):
+        await asyncio.gather(*[self.pull_task(key) for key in keys])
+
+    ##########################################################################
+    # ACCESS
+    ##########################################################################
+    def subscribe(
+        self, selector: Selector | str, callback: Callback
+    ) -> Trigger.Subscription:
+        if isinstance(selector, str):
+            asyncio.create_task(self.pull(selector))
+            return self.subscribe(lambda m: m[selector], callback)
+
+        trigger = Trigger(selector)
+        self.triggers.append(trigger)
+        return trigger.subscribe(callback)
+
+    async def do_auto_update(self, property_name: str, seconds: float):
+        await self.pull(property_name)
+        while True:
+            await asyncio.sleep(seconds)
+            await self.pull(property_name)
+
+    def auto_update(self, property_name: str, seconds: float):
+        if self.update_tasks.get(property_name):
+            self.update_tasks[property_name].cancel()
+
+        self.update_tasks[property_name] = asyncio.ensure_future(
+            self.do_auto_update(property_name, seconds)
+        )
+
     def get_properties(self) -> List[str]:
-        return self.model_order
+        return self.state_order
 
     def get_property(self, name: str) -> ValueDelegate:
-        return self.model[name]
+        return self.delegates[name]
 
-    async def get(self, property_name: str) -> Any:
-        return await self.model[property_name].get()
+    def get(self, property_name: str) -> Any:
+        return self.state[property_name]
 
-    async def set(self, property_name: str, value: Any) -> None:
-        self.model[property_name].set(value)
-
-    async def do(self, action_name: str, params: dict) -> Any:
-        return await self.actions[action_name].call(params)
-
-    async def get_rendered(self, property_name: str) -> str:
-        result = await self.get(property_name)
-        renderer = self.model[property_name].renderer
+    def get_rendered(self, property_name: str) -> str:
+        result = self.get(property_name)
+        renderer = self.delegates[property_name].renderer
         return renderer.render_data(result)
 
+    async def get_update_stream(self, property_name: str, timeout: int = 0):
+        queue = asyncio.Queue[Any]()
+
+        def callback(value: Any):
+            """Push a new value into the queue."""
+            asyncio.create_task(queue.put(value))  # Non-blocking queue put
+
+        with self.subscribe(property_name, callback):
+            while True:
+                yield_value = await queue.get()
+                yield yield_value, callback
+
+    async def get_rendered_update_stream(self, property_name: str, timeout: int = 0):
+        renderer = self.delegates[property_name].renderer
+
+        await self.pull(property_name)
+        yield renderer.render_data(self.state[property_name])
+        async for value, _ in self.get_update_stream(property_name, timeout):
+            data = renderer.render_data(value)
+            yield f"data: {data}\n\n"  # Must follow SSE format
+
+    async def do(self, action_name: str, params: Dict[str, Any]) -> Any:
+        return await self.actions[action_name].call(params)
+
     async def render_output(self, property_name: str, path: str) -> str:
-        renderer = self.model[property_name].renderer
-        return renderer.render_list_item(property_name, property_name)
+        renderer = self.state[property_name].renderer
+        name = self.state[property_name].display_name
+        return renderer.render_list_item(name, property_name)

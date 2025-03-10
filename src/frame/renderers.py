@@ -43,9 +43,20 @@ def render_nested_dict(data, indent=0):
     return html
 
 
-def render_folding_value(name, path):
-    id = uuid.uuid4().hex
+def render_streaming(path, id):
+    path = path + "/streaming"
     return f"""
+    <script>
+        (new EventSource("{path}")).onmessage = function(event) {{
+            document.getElementById("output-{id}").innerHTML = event.data;
+        }};
+    </script>
+    """
+
+
+def render_folding_value(name, path, streaming):
+    id = uuid.uuid4().hex
+    result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" onclick="toggleSection('{path}', 'container-{id}')">
                 <span class="toggle-icon">▶</span>
@@ -59,10 +70,15 @@ def render_folding_value(name, path):
         </div>
     """
 
+    if True:
+        result = render_streaming(path, id) + result
 
-def render_simple_value(name, path):
+    return result
+
+
+def render_simple_value(name, path, streaming):
     id = uuid.uuid4().hex
-    return f"""
+    result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" style="align-items: center;">
                 <h3 style="margin-right: 10px;">{name}:</h3>
@@ -75,6 +91,11 @@ def render_simple_value(name, path):
         </div>
     """
 
+    if streaming:
+        result = render_streaming(path, id) + result
+
+    return result
+
 
 renderers: Dict[str, Any] = {}
 
@@ -86,21 +107,24 @@ class RendererBase:
 
     def __init__(self, settings: Dict[str, Any]):
         self.folding = settings.get("folding", False)
+        self.streaming = True
 
-    def render_data(self, data: dict) -> Any:
+    def render_data(self, data: Dict[str, Any]) -> str:
         raise NotImplementedError("Subclasses must implement this method")
 
     def render_list_item(self, name: str, path: str) -> str:
         if self.folding:
-            return render_folding_value(name, path)
+            return render_folding_value(name, path, self.streaming)
         else:
-            return render_simple_value(name, path)
+            return render_simple_value(name, path, self.streaming)
 
 
-def make_renderer(settings: dict | str) -> RendererBase:
+def make_renderer(settings: dict | str, streaming=False) -> RendererBase:
     """Get an action by name."""
     if isinstance(settings, str):
         settings = {"type": settings}
+
+    settings["streaming"] = streaming
 
     renderer_class = renderers.get(settings["type"])
 
@@ -146,7 +170,7 @@ class ImageRenderer(RendererBase, name="image"):
     def render_data(self, data: ImageRef) -> str:
         return f"""
             <img 
-                src='/{data.url}' 
+                src='/{data.url}?{uuid.uuid4().hex}' 
                 class='screenshot-img' 
                 onclick="this.classList.toggle('fullsize'); document.getElementById('lightbox-overlay').classList.toggle('active');"
                 alt="Screenshot" 

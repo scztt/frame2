@@ -1,28 +1,51 @@
 path: /Users/chrysanth/Documents/_code/CoreStudioBruxelles
 name: "Core Core Liverpool"
+
+settings:
+  defaults:
+    get:
+      shell:
+        renderer: string
+      screenshot:
+        renderer: image
+
+    actions:
+      notification:
+        targets: ["ifft"]
+
+  osc:
+    point: 57120
+    endpoint: 127.0.0.1
+
+notification_targets:
+  ifft:
+    url: "https://maker.ifttt.com/trigger/corecore_events/json/with/key/oYagjlMI8HcVIo_uqIrm3"
+
 model:
-  "project.status":
+  project.status:
     name: "Status"
     get:
       type: shell
-      renderer: status
       cmd: ps aux | grep -v grep | grep sclang
+      renderer: status
       parser: { type: "detect", pattern: "sclang" }
 
-  "project.uptime":
+  project.uptime:
     name: "Uptime"
+    poll: 1
     get:
       type: shell
       cmd: "uptime"
       parser: { type: "regex", pattern: "up (.*?),", group: 1 }
 
-  "project.cpu":
+  project.cpu:
     name: "CPU Usage"
+    poll: 1
     get:
       type: shell
       cmd: 'ps -A -o %cpu | awk ''{s+=$1} END {print s "%"}'''
 
-  "project.system_information":
+  project.system_information:
     name: "System Information"
     get:
       type: shell
@@ -35,21 +58,24 @@ model:
           "-json",
         ]
       parser: "json"
-      renderer: "json"
+    renderer: { type: "json", folding: true }
 
-  "project.screenshot":
+  project.screenshot:
     name: "Screenshot"
-    get:
-      type: screenshot
-      renderer: image
+    get: screenshot
 
 actions:
   "restart":
     type: sequence
-    actions: [{ type: "stop" }, { type: "start" }]
+    actions: ["stop", "start"]
   "stop":
     type: shell
     cmd: ./daemons/disable_autoplay.command
   "start":
     type: shell
     cmd: ./daemons/enable_autoplay.command
+  "project_down":
+    type: notification
+    condition: not({project.status})
+    target: ["email"]
+    template: "The project is down!"

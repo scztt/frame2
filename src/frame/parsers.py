@@ -4,9 +4,6 @@ import re
 from typing import Any, Dict
 
 
-parsers = {}
-
-
 class ParserBase:
     def __init_subclass__(cls, name: str):
         super().__init_subclass__()
@@ -15,6 +12,12 @@ class ParserBase:
 
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
+
+    def __call__(self, value: str) -> Any:
+        raise NotImplementedError("Subclasses must implement this method")
+
+
+parsers: Dict[str, type] = {}
 
 
 class JsonParser(ParserBase, name="json"):
@@ -72,7 +75,7 @@ class SequenceParser(ParserBase, name="sequence"):
         return value
 
 
-def make_parser(settings: str | Dict[str, Any]):
+def make_parser(settings: str | Dict[str, Any]) -> ParserBase:
     if isinstance(settings, str):
         settings = {"type": settings}
 

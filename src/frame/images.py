@@ -1,13 +1,19 @@
 import os
 from typing import Any, Dict
 import tempfile
+import uuid
 
 
 class ImageRef:
+    id: str
+    uid: str
+    mod_time: float
+
     def __init__(self, id: str, path: str):
         self.id = id
         self.path = path
         self.url = "images/" + id
+        self.uid = uuid.uuid4().hex
 
     @property
     def extension(self):
@@ -24,6 +30,9 @@ class ImageRef:
     @property
     def stream(self):
         return (open(self.path, "rb"), self.extension)
+
+    def __eq__(self, other: "ImageRef") -> bool:
+        return self.id == other.id and self.uid == other.uid
 
 
 class ImageRepo:

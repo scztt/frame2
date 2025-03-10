@@ -33,7 +33,9 @@ class ValueBase:
 
     def __init__(self, settings: Dict[str, Any]):
         super().__init__()
-        self.renderer = make_renderer(settings.get("renderer", "string"))
+        self.renderer = make_renderer(
+            settings.get("renderer", "string"), settings.get("poll") is not None
+        )
         self.settings = settings
 
 
@@ -58,19 +60,43 @@ class SetValue(ValueBase, name="set", type="Set"):
 
 
 class ValueDelegate:
+    display_name: str
+    update_time: float | None
+    renderer: RendererBase
+
     def __init__(
         self,
-        display_name: str,
-        getter: GetValue | None,
-        setter: SetValue | None,
+        name: str,
+        desc: dict,
     ):
         super().__init__()
-        self.display_name = display_name
-        self.getter = getter
-        self.setter = setter
+        self.display_name = desc.get("name", name)
+        self.update_time = float(desc.get("poll")) if desc.get("poll") else None
 
-        if getter is not None:
-            self.renderer = getter.renderer
+        get_settings = desc.get("get")
+        set_settings = desc.get("set")
+
+        get = None
+        set = None
+
+        if isinstance(get_settings, str):
+            get_settings = {"type": get_settings}
+
+        if isinstance(set_settings, str):
+            set_settings = {"type": set_settings}
+
+        if get_settings:
+            get = getters[get_settings["type"]](get_settings)
+
+        if set_settings:
+            set = setters[set_settings["type"]](set_settings)
+
+        self.getter = get
+        self.setter = set
+
+        if get is not None:
+            self.updates = get_settings.get("poll", None)
+            self.renderer = get.renderer
 
     async def get(self) -> Any:
         if self.getter is None:
@@ -85,22 +111,8 @@ class ValueDelegate:
         return await self.getter.get()
 
 
-def make_value(
-    name: str,
-    display_name: str,
-    get_settings: Dict[str, Any] | None,
-    set_settings: Dict[str, Any] | None,
-):
-    get = None
-    set = None
-
-    if get_settings:
-        get = getters[get_settings["type"]](get_settings)
-
-    if set_settings:
-        set = setters[set_settings["type"]](set_settings)
-
-    return ValueDelegate(display_name, get, set)
+def make_value(name: str, value_desc: Dict[str, Any]):
+    return ValueDelegate(name, value_desc)
 
 
 ############################################################
@@ -108,9 +120,10 @@ def make_value(
 ############################################################
 class ShellGetter(GetValue, name="shell"):
     def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
         self.command = settings["cmd"]
         self.parser = make_parser(settings.get("parser", "string"))
-        self.renderer = make_renderer(settings.get("renderer", "string"))
 
     async def get(self):
         result_str = await run_command(self.command)
@@ -130,13 +143,12 @@ class ShellSetter(SetValue, name="shell"):
 
 
 class ScreenshotGetter(GetValue, name="screenshot"):
-
     def __init__(self, settings):
         settings["renderer"] = settings.get("renderer", "image")
         super().__init__(settings)
         self.id = "screenshot"
 
     async def get(self):
-        ref = image_repo.get_image_ref(self.id + ".png")
+        ref = image_repo.make_image_ref(self.id + ".png")
         await run_command(["screencapture", ref.path])
         return ref
