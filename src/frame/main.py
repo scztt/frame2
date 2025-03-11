@@ -1,19 +1,11 @@
 import json
 from typing import Any, Dict
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from jinja2 import Template
-import yaml
-from frame.model import Config
-from frame.plugins import system_information
-from frame.plugins.system_information import SystemInformationPlugin
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
+import yaml
+from frame.model import Config
 import asyncio
-import json
-from fastapi import Response
 from fastapi.responses import StreamingResponse
-import os
 from frame.images import image_repo
 
 from collections import OrderedDict
@@ -74,23 +66,15 @@ def make_endpoints():
 
         for property_name in config.get_properties():
             property = config.get_property(property_name)
-            # Convert dot notation to URL path notation
-            url_path = property_name.replace(".", "/")
-            endpoint_path = f"/model/{url_path}"
+
+            endpoint_path = config.get_property_path(property_name)
 
             @app.get(endpoint_path, response_class=HTMLResponse)
             async def get_property_value(property_name=property_name):
-                stream = config.get_rendered_update_stream(property_name)
-                result = await anext(stream)
-                asyncio.create_task(stream.aclose())
-                return result
-
-            @app.get(endpoint_path + "/streaming")
-            async def get_property_stream(property_name=property_name):
-                return StreamingResponse(
-                    config.get_rendered_update_stream(property_name),
-                    media_type="text/event-stream",
-                )
+                queue = asyncio.Queue[Any]()
+                with config.subscribe_rendered_updates(property_name, queue) as sub:
+                    _, rendered = await queue.get()
+                    return rendered
 
             if property.update_time:
                 config.auto_update(property_name, property.update_time)
@@ -102,6 +86,13 @@ def make_endpoints():
                     "name": property.display_name,
                     "render_func": property.renderer.render_list_item,
                 }
+            )
+
+        @app.get("/updates")
+        async def get_rendered_update_stream():
+            return StreamingResponse(
+                config.get_rendered_update_stream(),
+                media_type="text/event-stream",
             )
 
         endpoints_future.set_result(endpoints)
@@ -407,6 +398,12 @@ async def home():
                     setupImageHandlers(); // Set up image handlers after content loads
                 }}, {{once: true}});
             }}
+
+            (new EventSource("/updates")).onmessage = function(event) {{
+                let data = JSON.parse(event.data);
+                let element = document.getElementById(`output-${{data.id}}`);
+                element.innerHTML = data.rendered;
+            }};
         </script>
     </body>
     </html>

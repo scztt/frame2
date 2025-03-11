@@ -1,25 +1,36 @@
 path: /Users/chrysanth/Documents/_code/CoreStudioBruxelles
 name: "Core Core Liverpool"
 
+types:
+  parsers:
+    launchctl:
+      type: regex
+      pattern: (\d+)\s+(\d+)\s+([\w\.]+)
+      list: true
+      group:
+        pid: 1
+        ppid: 2
+        name: 3
+
+defaults:
+  get:
+    shell:
+      renderer: string
+    screenshot:
+      renderer: image
+
+  action:
+    notification:
+      targets: ["ifttt"]
+
+  target:
+    ifttt:
+      url: "https://maker.ifttt.com/trigger/corecore_events/json/with/key/oYagjlMI8HcVIo_uqIrm3"
+
 settings:
-  defaults:
-    get:
-      shell:
-        renderer: string
-      screenshot:
-        renderer: image
-
-    actions:
-      notification:
-        targets: ["ifft"]
-
   osc:
     point: 57120
     endpoint: 127.0.0.1
-
-notification_targets:
-  ifft:
-    url: "https://maker.ifttt.com/trigger/corecore_events/json/with/key/oYagjlMI8HcVIo_uqIrm3"
 
 model:
   project.status:
@@ -27,8 +38,16 @@ model:
     get:
       type: shell
       cmd: ps aux | grep -v grep | grep sclang
-      renderer: status
       parser: { type: "detect", pattern: "sclang" }
+    renderer: status
+
+  project.processes:
+    name: "Processes"
+    get:
+      type: shell
+      cmd: launchctl list
+      parser: launchctl
+    renderer: json
 
   project.uptime:
     name: "Uptime"
@@ -63,6 +82,7 @@ model:
   project.screenshot:
     name: "Screenshot"
     get: screenshot
+    renderer: image
 
 actions:
   "restart":

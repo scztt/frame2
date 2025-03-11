@@ -1,14 +1,15 @@
 import json
-from os import name
 import re
 from typing import Any, Dict
+
+from frame.registry import TypeRegistry
 
 
 class ParserBase:
     def __init_subclass__(cls, name: str):
         super().__init_subclass__()
         cls.name = name
-        parsers[name] = cls
+        registry.register(name, cls)
 
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
@@ -17,7 +18,7 @@ class ParserBase:
         raise NotImplementedError("Subclasses must implement this method")
 
 
-parsers: Dict[str, type] = {}
+registry = TypeRegistry[ParserBase]("parser")
 
 
 class JsonParser(ParserBase, name="json"):
@@ -31,15 +32,39 @@ class JsonParser(ParserBase, name="json"):
 class RegexParser(ParserBase, name="regex"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
-        self.pattern = settings.get("pattern", (".*"))
-        self.group = settings.get("group", 0)
 
-    def __call__(self, value: str) -> str:
-        match = re.search(self.pattern, value)
-        if not match:
-            return None
+        self.pattern = settings.get("pattern", (".*"))
+        self.is_list = settings.get("list", False)
+
+        group_setting = settings.get("group", 0)
+        if isinstance(group_setting, int):
+            self.group = group_setting
+            self.group_struct = None
+        elif isinstance(group_setting, dict):
+            self.group_struct = settings.get("group", False)
+            self.group = None
+        else:
+            raise ValueError("Invalid group setting")
+
+    def parse_item(self, match: re.Match[str]) -> str | Dict[str, str]:
+        if self.group_struct is not None:
+            return {k: match.group(v) for k, v in self.group_struct.items()}
         else:
             return match.group(self.group)
+
+    def __call__(self, value: str) -> str | Dict[str, str] | list[str | Dict[str, str]]:
+        if self.group_struct is not None:
+            match = re.finditer(self.pattern, value)
+            if not match:
+                raise ValueError(f"Pattern {self.pattern} not found in {value}")
+            else:
+                return [self.parse_item(m) for m in match]
+        else:
+            match = re.search(self.pattern, value)
+            if not match:
+                raise ValueError(f"Pattern {self.pattern} not found in {value}")
+            else:
+                return match.group(self.group)
 
 
 class StringParser(ParserBase, name="string"):
@@ -47,7 +72,7 @@ class StringParser(ParserBase, name="string"):
         super().__init__(settings)
         self.settings = settings
 
-    def __call__(self, value: str):
+    def __call__(self, value: str) -> str:
         return value
 
 
@@ -56,7 +81,7 @@ class DetectParser(RegexParser, name="detect"):
         super().__init__(settings)
         self.invert = settings.get("invert", False)
 
-    def __call__(self, value: str) -> str:
+    def __call__(self, value: str) -> bool:  # type: ignore
         match = re.search(self.pattern, value)
         if not match:
             return False if not (self.invert) else True
@@ -75,9 +100,10 @@ class SequenceParser(ParserBase, name="sequence"):
         return value
 
 
-def make_parser(settings: str | Dict[str, Any]) -> ParserBase:
-    if isinstance(settings, str):
-        settings = {"type": settings}
+def register_parsers(settings: Dict[str, Any]) -> None:
+    for name, ref_settings in settings.items():
+        registry.register_ref(name, ref_settings)
 
-    type = settings.get("type")
-    return parsers.get(type)(settings)
+
+def make_parser(settings: str | Dict[str, Any]) -> ParserBase:
+    return registry.make(settings)

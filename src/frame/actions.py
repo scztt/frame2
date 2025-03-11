@@ -1,5 +1,6 @@
 from typing import Callable, Dict, Any
 from frame.notification_targets import make_notification_target
+from frame.registry import TypeRegistry
 from frame.shell import run_command
 from frame.parsers import make_parser
 
@@ -7,7 +8,7 @@ from frame.parsers import make_parser
 class ActionBase:
     def __init_subclass__(cls, *, name: str, **kwargs):
         super().__init_subclass__(**kwargs)
-        actions[name] = cls
+        actions.register(name, cls)
 
     def __init__(self, settings: Dict[str, Any]) -> None:
         pass
@@ -16,20 +17,11 @@ class ActionBase:
         raise NotImplementedError("Subclasses must implement this method")
 
 
-actions: Dict[str, type] = {}
+actions = TypeRegistry[ActionBase]("action")
 
 
 def make_action(settings: str | Dict[str, Any]) -> ActionBase:
-    if isinstance(settings, str):
-        settings = {"type": settings}
-
-    type = settings.get("type")
-    cls = actions.get(type)
-
-    if cls is None:
-        raise ValueError(f"No action registered with name: {type}")
-
-    return cls(settings)
+    actions.make(settings)
 
 
 ############################################################
@@ -61,12 +53,9 @@ class NotificationAction(ActionBase, name="notification"):
 
 
 class SequenceAction(ActionBase, name="sequence"):
-    def __init__(
-        self, settings: Dict[str, Any], get_action: Callable[[str], ActionBase]
-    ):
+    def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
         self.actions = settings["actions"]
-        self.get_action = get_action
 
     async def call(self, settings: Dict[str, Any]) -> Any:
         for action in self.actions:

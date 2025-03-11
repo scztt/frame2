@@ -1,11 +1,25 @@
-from ast import Call
-import asyncio
-from typing import Callable, Dict, Any, Type
+from typing import Dict, Any, Generic, Type
 import uuid
+
+from annotated_types import T
 from frame.images import ImageRef
-from frame.shell import run_command
-from frame.parsers import make_parser
-import subprocess
+from frame.registry import TypeRegistry
+
+
+def render_nested_list(data, indent=0):
+    """Recursively renders nested dictionaries and lists as indented HTML."""
+    html = ""
+
+    has_name_key = all("_name" in item for item in data)
+    if has_name_key:
+        data = {item["_name"]: item for item in data}
+        return render_nested_dict(data, indent)
+
+    html = "<ul>"
+    html += "".join(f"<li>{render_nested(subitem, indent+1)}</li>" for subitem in data)
+    html += "</ul>"
+
+    return html
 
 
 def render_nested_dict(data, indent=0):
@@ -15,47 +29,32 @@ def render_nested_dict(data, indent=0):
     if not (isinstance(data, dict)):
         return str(data)
 
-    print("rendering: " + str(data))
-
     for key, value in data.items():
-        html += f"<div style='margin-left:{indent * 20}px;'><strong>{key}:</strong> "
-
-        if isinstance(value, dict):
-            html += "<br>" + render_nested_dict(value, indent + 1)
-        elif isinstance(value, list):
-            if value[0].get("_name"):
-                value = {item["_name"]: item for item in value}
-
-                for item in value:
-                    del value[item]["_name"]
-
-                html += render_nested_dict(value, indent + 1)
-            else:
-                html += (
-                    "<ul>"
-                    + "".join(f"<li>{render_nested_dict(item)}</li>" for item in value)
-                    + "</ul>"
-                )
-        else:
-            html += str(value)
-
-        html += "</div>"
+        if key != "_name":
+            html += (
+                f"<div style='margin-left:{indent * 20}px;'><strong>{key}:</strong> "
+            )
+            html += render_nested(value, indent + 1)
+            html += "</div>"
     return html
 
 
-def render_streaming(path, id):
-    path = path + "/streaming"
-    return f"""
-    <script>
-        (new EventSource("{path}")).onmessage = function(event) {{
-            document.getElementById("output-{id}").innerHTML = event.data;
-        }};
-    </script>
-    """
+def render_nested(data, indent=0):
+    """Recursively renders nested dictionaries and lists as indented HTML."""
+    html = ""
+
+    if isinstance(data, dict):
+        html += render_nested_dict(data, indent)
+    elif isinstance(data, list):
+        html += render_nested_list(data, indent)
+    else:
+        html += str(data)
+
+    return html
 
 
-def render_folding_value(name, path, streaming):
-    id = uuid.uuid4().hex
+def render_folding_value(name: str, path: str):
+    id = path.replace("/", "-")
     result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" onclick="toggleSection('{path}', 'container-{id}')">
@@ -70,14 +69,11 @@ def render_folding_value(name, path, streaming):
         </div>
     """
 
-    if True:
-        result = render_streaming(path, id) + result
-
     return result
 
 
-def render_simple_value(name, path, streaming):
-    id = uuid.uuid4().hex
+def render_simple_value(name: str, path: str):
+    id = path.replace("/", "-")
     result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" style="align-items: center;">
@@ -91,47 +87,45 @@ def render_simple_value(name, path, streaming):
         </div>
     """
 
-    if streaming:
-        result = render_streaming(path, id) + result
-
     return result
 
 
 renderers: Dict[str, Any] = {}
+ref_types: Dict[str, Dict[str, Any]] = {}
 
 
 class RendererBase:
     def __init_subclass__(cls, *, name: str, **kwargs):
         super().__init_subclass__(**kwargs)
-        renderers[name] = cls
+        renderer_registry.register(name, cls)
 
     def __init__(self, settings: Dict[str, Any]):
         self.folding = settings.get("folding", False)
         self.streaming = True
 
-    def render_data(self, data: Dict[str, Any]) -> str:
+    def render_data(self, data) -> str:
         raise NotImplementedError("Subclasses must implement this method")
 
     def render_list_item(self, name: str, path: str) -> str:
         if self.folding:
-            return render_folding_value(name, path, self.streaming)
+            return render_folding_value(name, path)
         else:
-            return render_simple_value(name, path, self.streaming)
+            return render_simple_value(name, path)
 
 
-def make_renderer(settings: dict | str, streaming=False) -> RendererBase:
-    """Get an action by name."""
-    if isinstance(settings, str):
-        settings = {"type": settings}
+renderer_registry = TypeRegistry[RendererBase]("renderer")
 
-    settings["streaming"] = streaming
 
-    renderer_class = renderers.get(settings["type"])
+def make_renderer(settings: Dict[str, Any] | str):
+    """Legacy function for backward compatibility"""
+    return renderer_registry.make(settings)
 
-    if renderer_class is None:
-        raise ValueError(f"No renderer registered with name: {settings["type"]}")
 
-    return renderer_class(settings)
+# Fix the load_renderer_types function
+def load_renderer_types(settings: Dict[str, Any]):
+    for name, ref_settings in settings.items():
+        renderer_registry.register_ref(name, ref_settings)
+        ref_types[name] = ref_settings  # Keep for backward compatibility
 
 
 ############################################################
@@ -148,7 +142,7 @@ class JSONRenderer(RendererBase, name="json"):
         self.folding = settings.get("folding", True)
 
     def render_data(self, data: dict) -> str:
-        return render_nested_dict(data)
+        return render_nested(data)
 
 
 class StatusRenderer(RendererBase, name="status"):

@@ -31,7 +31,7 @@ class ImageRef:
     def stream(self):
         return (open(self.path, "rb"), self.extension)
 
-    def __eq__(self, other: "ImageRef") -> bool:
+    def __eq__(self, other) -> bool:
         return self.id == other.id and self.uid == other.uid
 
 
@@ -39,7 +39,7 @@ class ImageRepo:
     def __init__(self, settings: Dict[str, Any]):
         self.settings = settings
         self.dir = tempfile.TemporaryDirectory()
-        self.images = {}
+        self.images: Dict[str, ImageRef] = {}
 
     def make_image_ref(self, unique_id: str) -> ImageRef:
         path = os.path.join(self.dir.name, unique_id)
@@ -50,9 +50,9 @@ class ImageRepo:
     def get_image_ref(self, id: str) -> ImageRef:
         image = self.images.get(id)
         if image is None:
-            image = self.make_image_ref(id)
-
-        return image
+            return self.make_image_ref(id)
+        else:
+            return image
 
     def get_image_stream(self, id: str) -> bytes:
         return self.get_image_ref(id).stream
