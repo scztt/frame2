@@ -16,8 +16,6 @@ defaults:
   get:
     shell:
       renderer: string
-    screenshot:
-      renderer: image
 
   action:
     notification:
@@ -25,7 +23,7 @@ defaults:
 
   target:
     ifttt:
-      url: "https://maker.ifttt.com/trigger/corecore_events/json/with/key/oYagjlMI8HcVIo_uqIrm3"
+      url: "https://maker.ifttt.com/trigger/corecore/with/key/oYagjlMI8HcVIo_uqIrm3"
 
 settings:
   osc:
@@ -33,15 +31,16 @@ settings:
     endpoint: 127.0.0.1
 
 model:
-  project.status:
+  status:
     name: "Status"
+    poll: 1
     get:
       type: shell
-      cmd: ps aux | grep -v grep | grep sclang
+      cmd: ps aux | grep -v grep | grep sclang || echo "---"
       parser: { type: "detect", pattern: "sclang" }
     renderer: status
 
-  project.processes:
+  processes:
     name: "Processes"
     get:
       type: shell
@@ -49,7 +48,7 @@ model:
       parser: launchctl
     renderer: json
 
-  project.uptime:
+  uptime:
     name: "Uptime"
     poll: 1
     get:
@@ -57,14 +56,22 @@ model:
       cmd: "uptime"
       parser: { type: "regex", pattern: "up (.*?),", group: 1 }
 
-  project.cpu:
+  log:
+    name: "Log"
+    poll: 1
+    renderer: log
+    get:
+      type: tail
+      path: "/Users/chrysanth/Desktop/sclang-Log-quark.log"
+
+  cpu:
     name: "CPU Usage"
     poll: 1
     get:
       type: shell
       cmd: 'ps -A -o %cpu | awk ''{s+=$1} END {print s "%"}'''
 
-  project.system_information:
+  system_information:
     name: "System Information"
     get:
       type: shell
@@ -79,23 +86,30 @@ model:
       parser: "json"
     renderer: { type: "json", folding: true }
 
-  project.screenshot:
+  screenshot:
     name: "Screenshot"
     get: screenshot
     renderer: image
 
 actions:
   "restart":
+    name: "Restart"
+    renderer: action
     type: sequence
     actions: ["stop", "start"]
   "stop":
+    name: "Stop"
+    renderer: action
     type: shell
     cmd: ./daemons/disable_autoplay.command
   "start":
+    name: "Start"
+    renderer: action
     type: shell
     cmd: ./daemons/enable_autoplay.command
   "project_down":
+    name: "Project Down"
     type: notification
-    condition: not({project.status})
+    condition: status == False
     target: ["email"]
-    template: "The project is down!"
+    message: "The project is down! Status: {{status}}"

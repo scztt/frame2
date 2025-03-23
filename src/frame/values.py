@@ -6,6 +6,8 @@ from frame.parsers import make_parser
 from frame.registry import TypeRegistry
 from frame.renderers import RendererBase, make_renderer
 from frame.shell import run_command
+from frame.utility import tail_lines
+import os
 
 ValueType = Enum("ValueType", [("Get", 1), ("Set", 2)])
 
@@ -86,3 +88,23 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
         ref = image_repo.make_image_ref(self.id + ".png")
         await run_command(["screencapture", ref.path])
         return ref
+
+
+class Tail(ValueBase, name="tail"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "log")
+        super().__init__(settings)
+
+        self.path = settings["path"]
+        self.lines = settings.get("lines", 100)
+        self.mod_time = 0
+        self.last_value = ""
+
+    async def get(self):
+        mod_time = os.path.getmtime(self.path)
+
+        if mod_time > self.mod_time:
+            self.mod_time = mod_time
+            self.last_value = tail_lines(self.path, self.lines)
+
+        return self.last_value

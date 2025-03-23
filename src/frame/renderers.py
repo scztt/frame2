@@ -1,9 +1,10 @@
-from typing import Dict, Any, Generic, Type
+from typing import Dict, Any, Generic, Tuple, Type
 import uuid
 
 from annotated_types import T
 from frame.images import ImageRef
 from frame.registry import TypeRegistry
+import html as html_module
 
 
 def render_nested_list(data, indent=0):
@@ -31,11 +32,33 @@ def render_nested_dict(data, indent=0):
 
     for key, value in data.items():
         if key != "_name":
-            html += (
-                f"<div style='margin-left:{indent * 20}px;'><strong>{key}:</strong> "
-            )
+            html += f"<div style='margin-left:{indent * 20}px;'><strong>{key}:</strong> "
             html += render_nested(value, indent + 1)
             html += "</div>"
+    return html
+
+
+def render_log(log: str):
+    """Render a log output as scrollable pre-formatted text with monospaced font"""
+    # Escape HTML to prevent rendering as HTML
+    escaped_log = html_module.escape(str(log))
+
+    # Generate a unique ID for the container
+    container_id = f"log-container-{uuid.uuid4().hex[:8]}"
+
+    html = f"""
+        <div id="{container_id}" class="log-container" style="overflow-y: auto; margin: 10px 0; width: 100%; height: 100%;">
+            <pre style="font-family: monospace; white-space: pre; margin: 0; padding: 10px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; width: 100%; height: 100%;"><code>{escaped_log}</code></pre>
+        </div>
+        <script>
+            (function() {{
+                const container = document.getElementById('{container_id}');
+                if (container) {{
+                    container.scrollTop = container.scrollHeight;
+                }}
+            }})();
+        </script>
+    """
     return html
 
 
@@ -90,6 +113,21 @@ def render_simple_value(name: str, path: str):
     return result
 
 
+def render_action(name: str, path: str, rendered: str):
+    id = path.replace("/", "-")
+    result = f"""
+        <div class="endpoint-container" id="container-{id}" data-path="{path}">
+            <div class="header" style="align-items: center;">
+                <h3 style="margin-right: 10px;">{name}:</h3>
+                {rendered}
+                <div id="output-{id}" class="output-container" style="display: inline-block; margin-left: 15px;"></div>
+            </div>
+        </div>
+    """
+
+    return result
+
+
 renderers: Dict[str, Any] = {}
 ref_types: Dict[str, Dict[str, Any]] = {}
 
@@ -116,8 +154,7 @@ class RendererBase:
 renderer_registry = TypeRegistry[RendererBase]("renderer")
 
 
-def make_renderer(settings: Dict[str, Any] | str):
-    """Legacy function for backward compatibility"""
+def make_renderer(settings: Dict[str, Any] | str) -> Tuple[RendererBase, Dict[str, Any]]:
     return renderer_registry.make(settings)
 
 
@@ -145,6 +182,15 @@ class JSONRenderer(RendererBase, name="json"):
         return render_nested(data)
 
 
+class LogRenderer(RendererBase, name="log"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.folding = settings.get("folding", True)
+
+    def render_data(self, data: dict) -> str:
+        return render_log(data)
+
+
 class StatusRenderer(RendererBase, name="status"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
@@ -169,4 +215,26 @@ class ImageRenderer(RendererBase, name="image"):
                 onclick="this.classList.toggle('fullsize'); document.getElementById('lightbox-overlay').classList.toggle('active');"
                 alt="Screenshot" 
             />
+        """
+
+
+class ActionRenderer(RendererBase, name="action"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+
+    def render_data(self, data: "ActionBase") -> str:
+        id = uuid.uuid4().hex
+
+        btn_id = f"btn-{id}"
+        output_id = f"output-{id}"
+        return f"""
+            <button id="{btn_id}" class="action-button" 
+            hx-post="{data.url}" 
+            hx-target="#{output_id}" 
+            hx-swap="innerHTML"
+            hx-headers='{{"Content-Type": "application/json"}}'
+            hx-vals='{{}}'>
+            {data.display_name}
+            </button>
+            <div id="{output_id}" class="action-output"></div>
         """

@@ -3,6 +3,8 @@ from typing import Any, Dict
 from fastapi import requests
 from frame.registry import TypeRegistry
 import json
+from starlette.exceptions import HTTPException
+import httpx
 
 
 class NotificationTargetBase:
@@ -12,7 +14,7 @@ class NotificationTargetBase:
 
     def __init__(self, settings: Dict[str, Any]): ...
 
-    def notify(self, data: Dict[str, Any]) -> Any:
+    async def notify(self, data: Dict[str, Any]) -> Any:
         raise NotImplementedError("Subclasses must implement this method")
 
 
@@ -43,20 +45,19 @@ class JSONRenderer(NotificationTargetBase, name="json"):
 class IFTTT(NotificationTargetBase, name="ifttt"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
+
         if settings.get("url") is not None:
             self.url = settings["url"]
         else:
             self.url = f"https://maker.ifttt.com/trigger/{settings["event_name"]}/json/with/key/{settings["key"]}"
 
-    def notify(self, data: Dict[str, Any]) -> Any:
+    async def notify(self, data: Dict[str, Any]) -> Any:
         try:
-            response = requests.post(
-                self.url,
-                headers={"Content-Type": "application/json"},
-                data=json.dumps({"value1": data}),
-            )
+            async with httpx.AsyncClient() as client:
+                response = await client.post(self.url, headers={"Content-Type": "application/json"}, json={"value1": data.get("subject"), "value2": data.get("message")})
             response.raise_for_status()
             return response
-        except requests.exceptions.RequestException as e:
+        except HTTPException as e:
             # Log the error or handle it as needed
+            print(e)
             return {"error": str(e)}

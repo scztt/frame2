@@ -64,6 +64,8 @@ class Config:
     state_order: List[str]
     delegates: Dict[str, ValueDelegate]
     actions: Dict[str, ActionBase]
+    actions_order: List[str]
+    actions_order: List[str]
     triggers: List[Trigger] = []
     update_tasks: Dict[str, asyncio.Task[Any]] = {}
 
@@ -88,7 +90,7 @@ class Config:
         self.parse_defaults(config.get("defaults", {}))
         (self.delegates, self.state_order) = self.parse_model(config.get("model", {}))
         self.state = {name: None for name, delegate in self.delegates.items()}
-        self.actions = self.parse_actions(config.get("actions", {}))
+        (self.actions, self.actions_order) = self.parse_actions(config.get("actions", {}))
         self.project_name = config.get("name", "Untitled Project")
 
         # ...update all values...
@@ -110,9 +112,7 @@ class Config:
     def parse_types(self, types: Dict[str, Any]):
         register_parsers(types.get("parsers", {}))
 
-    def parse_model(
-        self, model_config: Dict[str, Any]
-    ) -> Tuple[Dict[str, Any], List[str]]:
+    def parse_model(self, model_config: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
         model_order: List[str] = []
         delegates: Dict[str, ValueDelegate] = {}
 
@@ -123,13 +123,15 @@ class Config:
 
         return (delegates, model_order)
 
-    def parse_actions(self, action_config: Dict[str, Any]):
+    def parse_actions(self, action_config: Tuple[Dict[str, Any], List[Any]]):
         actions: Dict[str, ActionBase] = {}
+        actions_order: List[str] = []
 
         for name, action_desc in action_config.items():
-            actions[name] = make_action(action_desc)
+            actions_order.append(name)
+            actions[name] = make_action(self, name, action_desc)
 
-        return actions
+        return actions, actions_order
 
     ##########################################################################
     # STATE
@@ -154,9 +156,7 @@ class Config:
     ##########################################################################
     # ACCESS
     ##########################################################################
-    def subscribe(
-        self, selector: Selector | str, callback: Callback
-    ) -> Trigger.Subscription:
+    def subscribe(self, selector: Selector | str, callback: Callback) -> Trigger.Subscription:
         if isinstance(selector, str):
             asyncio.create_task(self.pull(selector))
             return self.subscribe(lambda m: m[selector], callback)
@@ -175,12 +175,13 @@ class Config:
         if self.update_tasks.get(property_name):
             self.update_tasks[property_name].cancel()
 
-        self.update_tasks[property_name] = asyncio.ensure_future(
-            self.do_auto_update(property_name, seconds)
-        )
+        self.update_tasks[property_name] = asyncio.ensure_future(self.do_auto_update(property_name, seconds))
 
     def get_properties(self) -> List[str]:
         return self.state_order
+
+    def get_actions(self) -> List[str]:
+        return self.actions_order
 
     def get_property(self, name: str) -> ValueDelegate:
         return self.delegates[name]
@@ -197,9 +198,14 @@ class Config:
         renderer = self.delegates[property_name].renderer
         return renderer.render_data(result)
 
-    def subscribe_rendered_updates(
-        self, property_name: str, queue: asyncio.Queue[Any]
-    ) -> Trigger.Subscription:
+    def get_rendered_action(self, action_name: str) -> str:
+        action = self.actions[action_name]
+        if action.renderer:
+            return action.renderer.render_data(action)
+        else:
+            return None
+
+    def subscribe_rendered_updates(self, property_name: str, queue: asyncio.Queue[Any]) -> Trigger.Subscription:
         renderer = self.delegates[property_name].renderer
 
         def callback(value: Any):
@@ -221,10 +227,7 @@ class Config:
 
         queue = asyncio.Queue[Any]()
         with ExitStack() as stack:
-            subscriptions = [
-                stack.enter_context(self.subscribe_rendered_updates(name, queue))
-                for name in self.get_properties()
-            ]
+            subscriptions = [stack.enter_context(self.subscribe_rendered_updates(name, queue)) for name in self.get_properties()]
 
             while True:
                 property_name, rendered = await queue.get()
@@ -235,7 +238,7 @@ class Config:
                 yield f"data: {json.dumps(data)}\n\n"  # Must follow SSE format
 
     async def do(self, action_name: str, params: Dict[str, Any]) -> Any:
-        return await self.actions[action_name].call(params)
+        return await self.actions[action_name].call(params, lambda action_name: self.actions[action_name])
 
     async def render_output(self, property_name: str, path: str) -> str:
         renderer = self.state[property_name].renderer

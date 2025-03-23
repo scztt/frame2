@@ -10,6 +10,8 @@ from frame.images import image_repo
 
 from collections import OrderedDict
 
+from frame.renderers import render_action, render_simple_value
+
 
 def ordered_yaml_load(stream):
     """Loads YAML while preserving key order."""
@@ -20,9 +22,7 @@ def ordered_yaml_load(stream):
     def construct_ordered_mapping(loader, node):
         return OrderedDict(loader.construct_pairs(node))
 
-    OrderedLoader.add_constructor(
-        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_ordered_mapping
-    )
+    OrderedLoader.add_constructor(yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG, construct_ordered_mapping)
 
     return yaml.load(stream, OrderedLoader)
 
@@ -60,6 +60,7 @@ async def system_info():
 
 def make_endpoints():
     endpoints_future = asyncio.Future[list[Dict[str, Any]]]()
+    actions_future = asyncio.Future[list[Dict[str, Any]]]()
 
     def make(_):
         endpoints: list[Dict[str, Any]] = []
@@ -97,12 +98,28 @@ def make_endpoints():
 
         endpoints_future.set_result(endpoints)
 
+        actions: list[Dict[str, Any]] = []
+
+        @app.post("/action/{action_name}", response_class=HTMLResponse)
+        async def do_action(action_name: str, params: Dict[str, Any] = {}):
+            params_to_use = params or {}
+            return await config.do(action_name, params_to_use)
+
+        for action_name in config.get_actions():
+            rendered = config.get_rendered_action(action_name)
+
+            if rendered:
+                action_path = f"/action/{action_name}"
+                actions.append({"rendered": rendered, "render_func": render_action, "name": action_name, "path": action_path})
+
+        actions_future.set_result(actions)
+
     config.done().add_done_callback(make)
 
-    return endpoints_future
+    return endpoints_future, actions_future
 
 
-endpoints_future = make_endpoints()
+endpoints_future, actions_future = make_endpoints()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -110,6 +127,7 @@ async def home():
     # Define endpoints and their display names
 
     endpoints = await endpoints_future
+    actions = await actions_future
 
     return f"""
     <!DOCTYPE html>
@@ -119,13 +137,83 @@ async def home():
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
         <style>
             :root {{
-                --bg-color: #f5f5f7;
-                --card-bg: #ffffff;
-                --text-primary: #1d1d1f;
-                --text-secondary: #6e6e73;
-                --accent-color: #0071e3;
-                --border-color: #e0e0e0;
-                --hover-color: #f0f0f0;
+            
+            /* Dark mode variables */
+            --dark-bg-color: #1a1a1a;
+            --dark-card-bg: #2d2d2d;
+            --dark-text-primary: #f5f5f7;
+            --dark-text-secondary: #a1a1a6;
+            --dark-accent-color: #0a84ff;
+            --dark-border-color: #3a3a3c;
+            --dark-hover-color: #3a3a3a;
+
+            /* Dark mode variables */
+            --bg-color: #f5f5f7;
+            --card-bg: #ffffff;
+            --text-primary: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --accent-color: #0071e3;
+            --border-color: #e0e0e0;
+            --hover-color: #f0f0f0;
+            
+            /* Button styles */
+            --button-radius: 6px;
+            --button-transition: all 0.2s ease;
+            --button-shadow: 0 1px 2px rgba(0,0,0,0.07);
+            --button-shadow-pressed: 0 1px 1px rgba(0,0,0,0.1);
+
+            button {{
+                background-color: var(--accent-color);
+                color: white;
+                border: none;
+                border-radius: var(--button-radius);
+                padding: 8px 16px;
+                font-family: inherit;
+                font-size: 0.9rem;
+                font-weight: 500;
+                cursor: pointer;
+                transition: var(--button-transition);
+                box-shadow: var(--button-shadow);
+                outline: none;
+            }}
+
+            button:hover {{
+                background-color: rgba(0, 113, 227, 0.9);
+                transform: translateY(-1px);
+            }}
+
+            button:active {{
+                background-color: rgba(0, 113, 227, 0.8);
+                transform: translateY(1px);
+                box-shadow: var(--button-shadow-pressed);
+            }}
+
+            button:disabled {{
+                background-color: #b0b0b0;
+                cursor: not-allowed;
+                transform: none;
+            }}
+
+            button.waiting {{
+                background-color: rgba(0, 113, 227, 0.6);
+                position: relative;
+                color: transparent;
+                pointer-events: none;
+            }}
+
+            button.waiting::after {{
+                content: "";
+                position: absolute;
+                top: 50%;
+                left: 50%;
+                width: 16px;
+                height: 16px;
+                margin-top: -8px;
+                margin-left: -8px;
+                border-radius: 50%;
+                border: 2px solid rgba(255, 255, 255, 0.25);
+                border-top-color: white;
+                animation: spin 0.8s linear infinite;
             }}
             
             * {{
@@ -307,7 +395,10 @@ async def home():
         <h1>{config.project_name}</h1>
 
         {"\n".join(value['render_func'](value['name'], value['path']) for i, value in enumerate(endpoints))}
-        
+
+        <h2>Actions:</h2>
+        {"\n".join(value['render_func'](value['name'], value['path'], value['rendered']) for i, value in enumerate(actions))}
+
         <script>
             // Load saved states when page loads
             document.addEventListener('DOMContentLoaded', function() {{

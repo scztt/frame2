@@ -1,16 +1,33 @@
 from copy import deepcopy
 from typing import Any, Dict, Generic, Tuple, Type
-
 from annotated_types import T
+import inspect
+
+
+def can_accept_kwargs(func, kwargs_dict):
+    """Check if function can accept the provided kwargs."""
+    sig = inspect.signature(func)
+
+    # Check for **kwargs parameter
+    for param in sig.parameters.values():
+        if param.kind == param.VAR_KEYWORD:
+            return True
+
+    # Check for specific named parameters
+    return any(name in sig.parameters for name in kwargs_dict)
+
 
 defaults: Dict[str, Dict[str, Any]] = {}
 
 
 class TypeRegistry(Generic[T]):
-    def __init__(self, name: str) -> None:
+    defaults: Dict[str, Any]
+
+    def __init__(self, name: str, defaults: Dict[str, Any] = {}) -> None:
         self.name = name
         self.types: Dict[str, Type[T]] = {}
         self.refs: Dict[str, Dict[str, Any]] = {}
+        self.defaults = defaults
 
     def register(self, name: str, cls: Type[T]) -> None:
         """Register a type with a given name."""
@@ -21,9 +38,9 @@ class TypeRegistry(Generic[T]):
         self.refs[name] = settings
 
     def default_settings(self, name: str) -> Dict[str, Any]:
-        return deepcopy(defaults.get(self.name, {}).get(name, {}))
+        return {**self.defaults, **deepcopy(defaults.get(self.name, {}).get(name, {}))}
 
-    def make(self, settings: Dict[str, Any] | str) -> Tuple[T, Dict[str, Any]]:
+    def make(self, settings: Dict[str, Any] | str, **kwargs) -> Tuple[T, Dict[str, Any]]:
         """Create an instance of the requested type with proper settings."""
         if isinstance(settings, str):
             settings = {"type": settings}
@@ -54,7 +71,11 @@ class TypeRegistry(Generic[T]):
         if cls is None:
             raise ValueError(f"No type registered with name: {settings['type']}")
 
-        return cls(settings), settings
+        # Create instance with kwargs only if the class can accept them
+        if kwargs and can_accept_kwargs(cls.__init__, kwargs):
+            return cls(settings, **kwargs), settings
+        else:
+            return cls(settings), settings
 
 
 def set_defaults(settings: Dict[str, Any]) -> Dict[str, Any]:

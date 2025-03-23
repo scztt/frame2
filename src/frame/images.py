@@ -32,7 +32,7 @@ class ImageRef:
         return (open(self.path, "rb"), self.extension)
 
     def __eq__(self, other) -> bool:
-        return self.id == other.id and self.uid == other.uid
+        return type(self) is type(other) and self.id == other.id and self.uid == other.uid
 
 
 class ImageRepo:
