@@ -19,18 +19,6 @@ class ImageRef:
     def extension(self):
         return os.path.splitext(self.path)[1]
 
-    # @property
-    # def url(self):
-    #     return self.url
-
-    # @property
-    # def path(self):
-    #     return self.path
-
-    @property
-    def stream(self):
-        return (open(self.path, "rb"), self.extension)
-
     def __eq__(self, other) -> bool:
         return type(self) is type(other) and self.id == other.id and self.uid == other.uid
 
@@ -54,8 +42,8 @@ class ImageRepo:
         else:
             return image
 
-    def get_image_stream(self, id: str) -> bytes:
-        return self.get_image_ref(id).stream
+    def get_image_path(self, id: str) -> str:
+        return self.get_image_ref(id).path
 
 
 image_repo = ImageRepo({})
