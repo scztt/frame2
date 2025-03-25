@@ -1,5 +1,6 @@
 path: /Users/chrysanth/Documents/_code/CoreStudioBruxelles
 name: "Core Core Liverpool"
+password_hash: bf6039d8acf8981f85515b3194f63128408cc4107258f66a96935e1652e2db22
 
 types:
   parsers:

@@ -68,6 +68,7 @@ class Config:
     actions_order: List[str]
     triggers: List[Trigger] = []
     update_tasks: Dict[str, asyncio.Task[Any]] = {}
+    password_hash: str
 
     class Mutable:
         config: "Config"
@@ -92,6 +93,7 @@ class Config:
         self.state = {name: None for name, delegate in self.delegates.items()}
         (self.actions, self.actions_order) = self.parse_actions(config.get("actions", {}))
         self.project_name = config.get("name", "Untitled Project")
+        self.password_hash = config["password_hash"]
 
         # ...update all values...
         self.ready = self.pull(*self.state_order)

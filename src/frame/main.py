@@ -1,7 +1,10 @@
+from functools import wraps
+import hashlib
 import json
 from typing import Any, Dict
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
+from uuid import uuid4
+from fastapi import FastAPI, Form, Request, Response
+from fastapi.responses import HTMLResponse, RedirectResponse
 import yaml
 from frame.model import Config
 import asyncio
@@ -14,6 +17,23 @@ from frame.renderers import render_action, render_simple_value
 from fastapi.responses import FileResponse
 import os
 from fastapi import Body
+from fastapi import Depends, HTTPException, status, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
+from datetime import datetime, timedelta
+import secrets
+from pydantic import BaseModel
+
+
+TOKENS = set()
+
+
+# --- Helper functions ---
+def hash_password(password: str):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+
+def verify_password(plain_password: str, hashed_password: str):
+    return hash_password(plain_password) == hashed_password
 
 
 def ordered_yaml_load(stream):
@@ -32,6 +52,37 @@ def ordered_yaml_load(stream):
 
 app = FastAPI()
 config = Config(ordered_yaml_load(open("src/frame/examples/example_config.yaml")))
+
+
+# --- Login Page ---
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    return """
+    <form action="/login" method="post">
+      Password: <input type="password" name="password">
+      <button type="submit">Login</button>
+    </form>
+    """
+
+
+# --- Login Endpoint ---
+@app.post("/login")
+async def login(response: Response, password: str = Form(...)):
+    if hashlib.sha256(password.encode()).hexdigest() != config.password_hash:
+        raise HTTPException(status_code=401, detail="Incorrect password")
+    token = secrets.token_urlsafe(32)
+    TOKENS.add(token)
+    # Set token in an HTTP-only cookie
+    response = RedirectResponse("/", status_code=302)
+    response.set_cookie("auth_token", token, httponly=True)
+    return response
+
+
+# Dependency to check token in cookie
+async def verify_token(request: Request):
+    token = request.cookies.get("auth_token")
+    if not token or token not in TOKENS:
+        raise HTTPException(status_code=status.HTTP_302_FOUND, headers={"Location": "/login"})
 
 
 async def get_system_info():
@@ -53,12 +104,6 @@ async def get_system_info():
         return json.loads(stdout.decode())
     except json.JSONDecodeError as e:
         return {"error": str(e)}
-
-
-@app.get("/system_info", response_class=HTMLResponse)
-async def system_info():
-    data = await get_system_info()
-    return json.dumps(data, indent=2)
 
 
 def make_endpoints():
@@ -93,7 +138,7 @@ def make_endpoints():
             )
 
         @app.get("/updates")
-        async def get_rendered_update_stream():
+        async def get_rendered_update_stream(_=Depends(verify_token)):
             return StreamingResponse(
                 config.get_rendered_update_stream(),
                 media_type="text/event-stream",
@@ -104,7 +149,11 @@ def make_endpoints():
         actions: list[Dict[str, Any]] = []
 
         @app.post("/action/{action_name}", response_class=HTMLResponse)
-        async def do_action(action_name: str, params: Dict[str, Any] = {}):
+        async def do_action(
+            action_name: str,
+            params: Dict[str, Any] = {},
+            _=Depends(verify_token),
+        ):
             params_to_use = params or {}
             return await config.do(action_name, params_to_use)
 
@@ -126,17 +175,24 @@ endpoints_future, actions_future = make_endpoints()
 
 
 @app.get("/style.css")
-async def get_css():
+async def get_css(
+    _=Depends(verify_token),
+):
     return FileResponse("src/frame/static/style.css", media_type="text/css")
 
 
 @app.get("/script.js")
-async def get_script():
+async def get_script(
+    _=Depends(verify_token),
+):
     return FileResponse("src/frame/static/script.js", media_type="text/javascript")
 
 
 @app.get("/images/{image_name}")
-async def get_image(image_name: str):
+async def get_image(
+    image_name: str,
+    _=Depends(verify_token),
+):
     # Define directory where images are stored
     image_path = image_repo.get_image_path(image_name)
     extension = os.path.splitext(image_path)[1]
@@ -155,7 +211,9 @@ async def get_image(image_name: str):
 
 
 @app.get("/", response_class=HTMLResponse)
-async def home():
+async def home(
+    _=Depends(verify_token),
+):
     # Define endpoints and their display names
 
     endpoints = await endpoints_future
