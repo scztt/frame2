@@ -76,6 +76,70 @@ def render_nested(data, indent=0):
     return html
 
 
+def render_number_control(min: float, max: float, step: float, value: float, units: str, path: str):
+    """Render a number input with incrementing/decrementing capabilities via dragging.
+    The value is constrained between min and max, and changes by step amount.
+    When changed, it posts to the given path via HTMX."""
+
+    id = f"number-{uuid.uuid4().hex[:8]}"
+
+    return f"""
+        <div class="number-control-container">
+            <input type="number" 
+                id="{id}" 
+                min="{min}" 
+                max="{max}" 
+                step="{step}" 
+                value="{value}" 
+                class="number-control"
+                hx-post="{path}"
+                hx-trigger="change"
+                hx-ext="json-enc"
+                hx-vals='js:{{"value": parseFloat(document.getElementById("{id}").value)}}'
+            />
+            {units}
+            <script>
+                (function() {{
+                    const input = document.getElementById('{id}');
+                    let isDragging = false;
+                    let lastY = 0;
+                    
+                    input.addEventListener('mousedown', (e) => {{
+                        isDragging = true;
+                        lastY = e.clientY;
+                        document.body.style.cursor = 'ns-resize';
+                        e.preventDefault(); // Prevent text selection
+                    }});
+                    
+                    document.addEventListener('mousemove', (e) => {{
+                        if (!isDragging) return;
+                        
+                        const deltaY = lastY - e.clientY;
+                        lastY = e.clientY;
+                        let newValue = parseFloat(input.value) + (deltaY * {step});
+                        newValue = Math.max({min}, Math.min({max}, newValue));
+                        newValue = newValue.toFixed(2);
+                
+                        if (input.value !== newValue.toString()) {{
+                            input.value = newValue;
+                            input.dispatchEvent(new Event('change'));
+                        }}
+                    }});
+                    
+                    document.addEventListener('mouseup', () => {{
+                        if (isDragging) {{
+                            isDragging = false;
+                            document.body.style.cursor = '';
+                            // Trigger htmx to send the updated value
+                            input.dispatchEvent(new Event('change'));
+                        }}
+                    }});
+                }})();
+            </script>
+        </div>
+    """
+
+
 def render_folding_value(name: str, path: str):
     id = path.replace("/", "-")[1:]
     result = f"""
@@ -242,3 +306,16 @@ class ActionRenderer(RendererBase, name="action"):
             </button>
             <div id="{output_id}" class="action-output"></div>
         """
+
+
+class SliderRenderer(RendererBase, name="slider"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.min = settings.get("min", 0)
+        self.max = settings.get("max", 100)
+        self.step = settings.get("step", 1)
+        self.default = settings.get("default", 0)
+        self.units = settings.get("units", "")
+
+    def render_data(self, data: "ActionBase") -> str:
+        return render_number_control(self.min, self.max, self.step, self.default, self.units, data.url)

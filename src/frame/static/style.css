@@ -145,6 +145,45 @@ h1 {
     margin-left: 0.5rem;
 }
 
+/* Number input styling */
+input[type="number"] {
+    font-family: inherit;
+    font-size: 0.9rem;
+    color: var(--text-primary);
+    background-color: var(--card-bg);
+    border: 1px solid var(--border-color);
+    border-radius: var(--button-radius);
+    padding: 8px 12px;
+    max-width: 200px;
+    text-align: right;
+    transition: var(--button-transition);
+    outline: none;
+    -moz-appearance: textfield;
+    /* Removes arrows in Firefox */
+}
+
+/* Chrome, Safari, Edge, Opera */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+input[type="number"]:focus {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 2px rgba(0, 113, 227, 0.2);
+}
+
+input[type="number"]:hover:not(:focus) {
+    border-color: #c0c0c0;
+}
+
+input[type="number"]:disabled {
+    background-color: var(--hover-color);
+    color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
 .refresh-icon {
     cursor: pointer;
     color: var(--text-secondary);

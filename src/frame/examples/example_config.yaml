@@ -107,6 +107,19 @@ actions:
     renderer: action
     type: shell
     cmd: ./daemons/enable_autoplay.command
+  volume:
+    name: "Volume"
+    type: osc
+    address: 127.0.0.1
+    port: 57121
+    path: "/volume"
+    renderer:
+      type: slider
+      min: -120
+      max: 6
+      step: 0.1
+      value: 0
+      units: dB
   project_down:
     name: "Project Down"
     type: notification

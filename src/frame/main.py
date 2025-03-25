@@ -13,6 +13,7 @@ from collections import OrderedDict
 from frame.renderers import render_action, render_simple_value
 from fastapi.responses import FileResponse
 import os
+from fastapi import Body
 
 
 def ordered_yaml_load(stream):
@@ -166,6 +167,7 @@ async def home():
     <head>
         <script src="https://unpkg.com/htmx.org@1.9.5"></script>
         <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
+        <script src="https://unpkg.com/htmx.org/dist/ext/json-enc.js"></script>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
         <link rel="stylesheet" href="style.css">
     </head>

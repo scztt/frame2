@@ -4,6 +4,7 @@ from frame.registry import TypeRegistry
 from frame.renderers import RendererBase, make_renderer
 from frame.shell import run_command
 from frame.parsers import make_parser
+from pythonosc import udp_client
 import jinja2
 import asyncio
 
@@ -24,7 +25,7 @@ class ActionBase:
         self.display_name = settings.get("name", self.name)
         pass
 
-    async def call(self, settings: Dict[str, Any], get_action) -> Any:
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
         raise NotImplementedError("Subclasses must implement this method")
 
 
@@ -50,7 +51,7 @@ class ShellAction(ActionBase, name="shell"):
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(settings["renderer"])
 
-    async def call(self, settings: Dict[str, Any], get_action) -> Any:
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
         result_str = await run_command(self.command)
         result = self.parser(result_str)
         return result
@@ -141,7 +142,7 @@ class NotificationAction(ActionBase, name="notification"):
         for target in self.targets:
             asyncio.create_task(target.notify({"message": message_rendered}))
 
-    async def call(self, settings: Dict[str, Any], get_action) -> Any:
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
         print(self.message)
         return None
 
@@ -153,7 +154,22 @@ class SequenceAction(ActionBase, name="sequence"):
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(settings["renderer"])
 
-    async def call(self, settings: Dict[str, Any], get_action) -> Any:
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
         for action in self.actions:
-            await get_action(action).call(settings, get_action)
+            await get_action(action).call(params, get_action)
         return None
+
+
+class OSCAction(ActionBase, name="osc"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.path = settings["path"]
+        self.args = settings.get("args", [])
+        self.client = udp_client.SimpleUDPClient(settings["address"], int(settings["port"]))
+
+        if settings.get("renderer"):
+            self.renderer, _ = make_renderer(settings.get("renderer", "slider"))
+
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
+        msg = [item for pair in params.items() for item in pair]
+        self.client.send_message(self.path, msg)
