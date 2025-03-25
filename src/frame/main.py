@@ -165,10 +165,11 @@ async def home():
     <html>
     <head>
         <script src="https://unpkg.com/htmx.org@1.9.5"></script>
+        <script src="https://unpkg.com/htmx.org/dist/ext/sse.js"></script>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
         <link rel="stylesheet" href="style.css">
     </head>
-    <body>
+    <body hx-ext="sse" sse-connect="/updates">
         <div id="lightbox-overlay" class="lightbox-overlay"></div>
         <h1>{config.project_name}</h1>
         {"\n".join(value['render_func'](value['name'], value['path']) for i, value in enumerate(endpoints))}

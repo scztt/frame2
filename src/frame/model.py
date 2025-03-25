@@ -215,15 +215,19 @@ class Config:
         return self.subscribe(property_name, callback)
 
     async def get_rendered_update_stream(self):
-        await self.pull(*self.get_properties())
+        # yield "data: started\n\n"
+        yield "event:message\ndata: updated\n\n"
 
+        await self.pull(*self.get_properties())
         for property_name in self.get_properties():
             renderer = self.delegates[property_name].renderer
-            data = {
-                "id": self.get_property_path(property_name).replace("/", "-"),
-                "rendered": renderer.render_data(self.state[property_name]),
-            }
-            yield f"data: {json.dumps(data)}\n\n"  # Must follow SSE format
+            rendered = renderer.render_data(self.state[property_name])
+            id = self.get_property_path(property_name).replace("/", "-")[1:]
+
+            yield f"event:{id}\n"
+            for line in rendered.split("\n"):
+                yield f"data: {line}\n"
+            yield "\n"
 
         queue = asyncio.Queue[Any]()
         with ExitStack() as stack:
@@ -231,11 +235,14 @@ class Config:
 
             while True:
                 property_name, rendered = await queue.get()
-                data = {
-                    "id": self.get_property_path(property_name).replace("/", "-"),
-                    "rendered": rendered,
-                }
-                yield f"data: {json.dumps(data)}\n\n"  # Must follow SSE format
+                renderer = self.delegates[property_name].renderer
+                rendered = renderer.render_data(self.state[property_name])
+                id = self.get_property_path(property_name).replace("/", "-")[1:]
+
+                yield f"event:{id}\n"
+                for line in rendered.split("\n"):
+                    yield f"data: {line}\n"
+                yield "\n"
 
     async def do(self, action_name: str, params: Dict[str, Any]) -> Any:
         return await self.actions[action_name].call(params, lambda action_name: self.actions[action_name])

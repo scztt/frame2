@@ -30,6 +30,14 @@ document.addEventListener('DOMContentLoaded', function () {
     document.body.addEventListener('htmx:afterOnLoad', function () {
         setupImageHandlers();
     });
+
+    document.querySelectorAll('.refresh-icon').forEach(el => {
+        el.addEventListener('click', () => {
+            el.classList.remove('rotate'); // reset if clicked again
+            void el.offsetWidth; // force reflow to restart animation
+            el.classList.add('rotate');
+        });
+    });
 });
 
 function setupImageHandlers() {
@@ -67,12 +75,15 @@ function toggleSection(path, id) {
     }
 }
 
-function refreshData(event, containerId, refreshIconId, path) {
+function refreshData(event, containerId, pendingClass, path) {
     event.stopPropagation();
 
     // Add spinning animation
-    const refreshIcon = document.getElementById(refreshIconId);
-    refreshIcon.classList.add('spinning');
+    // const refreshIconX = document.getElementById(pendingClass);
+    // refreshIconX.classList.add('spinning');
+
+    const refreshIcon = document.querySelectorAll("." + pendingClass)
+        .forEach(icon => icon.classList.add('spinning'));
 
     // Ensure container is expanded
     const container = document.getElementById(containerId);
@@ -82,14 +93,10 @@ function refreshData(event, containerId, refreshIconId, path) {
     localStorage.setItem('expanded_' + path, 'true');
 
     // Remove spinning after data loads
-    document.getElementById(refreshIconId).addEventListener('htmx:afterOnLoad', function () {
-        refreshIcon.classList.remove('spinning');
-        setupImageHandlers(); // Set up image handlers after content loads
-    }, { once: true });
-}
+    document.querySelectorAll("." + pendingClass).forEach(element => {
+        element.addEventListener('htmx:afterOnLoad', function () {
+            element.classList.remove('spinning')
+        }, { once: true });
+    });
 
-(new EventSource("/updates")).onmessage = function (event) {
-    let data = JSON.parse(event.data);
-    let element = document.getElementById(`output-${data.id}`);
-    element.innerHTML = data.rendered;
-};
+}

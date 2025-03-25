@@ -56,6 +56,13 @@ model:
       cmd: "uptime"
       parser: { type: "regex", pattern: "up (.*?),", group: 1 }
 
+  cpu:
+    name: "CPU Usage"
+    poll: 0.5
+    get:
+      type: shell
+      cmd: 'ps -A -o %cpu | awk ''{s+=$1} END {print s "%"}'''
+
   log:
     name: "Log"
     poll: 1
@@ -63,13 +70,6 @@ model:
     get:
       type: tail
       path: "/Users/chrysanth/Desktop/sclang-Log-quark.log"
-
-  cpu:
-    name: "CPU Usage"
-    poll: 1
-    get:
-      type: shell
-      cmd: 'ps -A -o %cpu | awk ''{s+=$1} END {print s "%"}'''
 
   system_information:
     name: "System Information"
@@ -92,22 +92,22 @@ model:
     renderer: image
 
 actions:
-  "restart":
+  restart:
     name: "Restart"
     renderer: action
     type: sequence
     actions: ["stop", "start"]
-  "stop":
+  stop:
     name: "Stop"
     renderer: action
     type: shell
     cmd: ./daemons/disable_autoplay.command
-  "start":
+  start:
     name: "Start"
     renderer: action
     type: shell
     cmd: ./daemons/enable_autoplay.command
-  "project_down":
+  project_down:
     name: "Project Down"
     type: notification
     condition: status == False

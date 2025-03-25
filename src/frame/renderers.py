@@ -77,18 +77,20 @@ def render_nested(data, indent=0):
 
 
 def render_folding_value(name: str, path: str):
-    id = path.replace("/", "-")
+    id = path.replace("/", "-")[1:]
     result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" onclick="toggleSection('{path}', 'container-{id}')">
                 <span class="toggle-icon">▶</span>
                 <h3>{name}</h3>
-                <span id="refresh-{id}" class="refresh-icon" hx-get="{path}" 
-                      hx-target="#output-{id}" onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
+                <span id="refresh-{id}" class="refresh-icon refresh-{id}" 
+                    hx-get="{path}" 
+                    hx-target="#output-{id}" 
+                    onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
                   ↻
                 </span>
             </div>
-            <div id="output-{id}" class="output-container"></div>
+            <div id="output-{id}" sse-swap="{id}" class="output-container"></div>
         </div>
     """
 
@@ -96,15 +98,17 @@ def render_folding_value(name: str, path: str):
 
 
 def render_simple_value(name: str, path: str):
-    id = path.replace("/", "-")
+    id = path.replace("/", "-")[1:]
     result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" style="align-items: center;">
                 <h3 style="margin-right: 10px;">{name}:</h3>
-                <div id="output-{id}" class="output-container" style="display: flex; display: inline-block; margin-left: 15px; border-top: none; padding: 0;"></div>
-                <span id="refresh-{id}" class="refresh-icon" hx-get="{path}" 
-                      hx-target="#output-{id}" onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
-                  ↻
+                <div id="output-{id}" class="output-container" sse-swap="{id}" style="display: flex; display: inline-block; margin-left: 15px; border-top: none; padding: 0;"></div>
+                <span id="refresh-{id}" class="refresh-icon refresh-{id}" 
+                    hx-get="{path}"
+                    hx-target="#output-{id}" 
+                    onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
+                ↻
                 </span>
             </div>
         </div>
@@ -114,13 +118,13 @@ def render_simple_value(name: str, path: str):
 
 
 def render_action(name: str, path: str, rendered: str):
-    id = path.replace("/", "-")
+    id = path.replace("/", "-")[1:]
     result = f"""
         <div class="endpoint-container" id="container-{id}" data-path="{path}">
             <div class="header" style="align-items: center;">
                 <h3 style="margin-right: 10px;">{name}:</h3>
                 {rendered}
-                <div id="output-{id}" class="output-container" style="display: inline-block; margin-left: 15px;"></div>
+                <div id="output-{id}" class="output-container" sse-swap="{id}" style="display: inline-block; margin-left: 15px;"></div>
             </div>
         </div>
     """
@@ -141,7 +145,7 @@ class RendererBase:
         self.folding = settings.get("folding", False)
         self.streaming = True
 
-    def render_data(self, data) -> str:
+    def render_data(self, data: Any) -> str:
         raise NotImplementedError("Subclasses must implement this method")
 
     def render_list_item(self, name: str, path: str) -> str:
