@@ -82,12 +82,27 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
     def __init__(self, settings):
         settings["renderer"] = settings.get("renderer", "image")
         super().__init__(settings)
+        self.x = settings.get("x", None)
+        self.y = settings.get("y", None)
+        self.width = settings.get("width", None)
+        self.height = settings.get("height", None)
         self.id = "screenshot"
 
     async def get(self):
         ref = image_repo.make_image_ref(self.id + ".png")
-        await run_command(["screencapture", ref.path])
-        return ref
+        if (self.x is not None) and (self.y is not None) and (self.width is not None) and (self.height is not None):
+            await run_command(
+                [
+                    "screencapture",
+                    "-R",
+                    f"{self.x},{self.y},{self.width},{self.height}",
+                    ref.path,
+                ]
+            )
+            return ref
+        else:
+            await run_command(["screencapture", ref.path])
+            return ref
 
 
 class Tail(ValueBase, name="tail"):
