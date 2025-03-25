@@ -262,12 +262,14 @@ class LogRenderer(RendererBase, name="log"):
 class StatusRenderer(RendererBase, name="status"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
+        self.true_string = settings.get("true_string", "Good")
+        self.false_string = settings.get("false_string", "Error")
 
     def render_data(self, data: bool) -> str:
         if data:
-            return "<div class='value success'>Good</div>"
+            return f"<div class='value success'>{self.true_string}</div>"
         else:
-            return "<div class='value failure'>Error</div>"
+            return f"<div class='value failure'>{self.false_string}</div>"
 
 
 class ImageRenderer(RendererBase, name="image"):
