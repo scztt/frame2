@@ -105,6 +105,7 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
                     let isDragging = false;
                     let lastY = 0;
                     
+                    // Mouse events
                     input.addEventListener('mousedown', (e) => {{
                         isDragging = true;
                         lastY = e.clientY;
@@ -131,6 +132,38 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
                         if (isDragging) {{
                             isDragging = false;
                             document.body.style.cursor = '';
+                            // Trigger htmx to send the updated value
+                            input.dispatchEvent(new Event('change'));
+                        }}
+                    }});
+                    
+                    // Touch events for mobile
+                    input.addEventListener('touchstart', (e) => {{
+                        isDragging = true;
+                        lastY = e.touches[0].clientY;
+                        e.preventDefault(); // Prevent scrolling
+                    }});
+                    
+                    document.addEventListener('touchmove', (e) => {{
+                        if (!isDragging) return;
+                        
+                        const deltaY = lastY - e.touches[0].clientY;
+                        lastY = e.touches[0].clientY;
+                        let newValue = parseFloat(input.value) + (deltaY * {step});
+                        newValue = Math.max({min}, Math.min({max}, newValue));
+                        newValue = newValue.toFixed(2);
+                
+                        if (input.value !== newValue.toString()) {{
+                            input.value = newValue;
+                            input.dispatchEvent(new Event('change'));
+                        }}
+                        
+                        e.preventDefault(); // Prevent scrolling while dragging
+                    }});
+                    
+                    document.addEventListener('touchend', () => {{
+                        if (isDragging) {{
+                            isDragging = false;
                             // Trigger htmx to send the updated value
                             input.dispatchEvent(new Event('change'));
                         }}
