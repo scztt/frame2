@@ -5,7 +5,7 @@ app_cli = typer.Typer()
 
 
 @app_cli.command()
-def run_server(host: str = "127.0.0.1", port: int = 8000):
+def run_server(host: str = "0.0.0.0", port: int = 8000):
     """Run the FastAPI server"""
     uvicorn.run(
         "frame.main:app",
