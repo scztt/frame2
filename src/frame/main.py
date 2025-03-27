@@ -59,10 +59,23 @@ config = Config(ordered_yaml_load(open("src/frame/examples/corecore.yaml")))
 @app.get("/login", response_class=HTMLResponse)
 async def login_page():
     return """
-    <form action="/login" method="post">
-      Password: <input type="password" name="password">
-      <button type="submit">Login</button>
-    </form>
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
+        <link rel="stylesheet" href="style.css">
+    </head>
+    <body>
+        <div class="login-container">
+            <h1>Login</h1>
+            <form action="/login" method="post">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password">
+                <button type="submit">Login</button>
+            </form>
+        </div>
+    </body>
+    </html>
     """
 
 
@@ -219,7 +232,9 @@ async def home(
         <h1>{config.project_name}</h1>
         {"\n".join(value['render_func'](value['name'], value['path']) for i, value in enumerate(endpoints))}
         <h2>Actions:</h2>
+        <div class="actions-list">
         {"\n".join(value['render_func'](value['name'], value['path'], value['rendered']) for i, value in enumerate(actions))}
+        </div>
         <script src="script.js"></script>
     </body>
     </html>
