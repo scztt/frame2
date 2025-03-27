@@ -65,6 +65,7 @@ async def login_page():
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
         <link rel="stylesheet" href="style.css">
     </head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <body>
         <div class="login-container">
             <h1>Login</h1>
@@ -226,6 +227,7 @@ async def home(
         <script src="https://unpkg.com/htmx.org/dist/ext/json-enc.js"></script>
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap">
         <link rel="stylesheet" href="style.css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     </head>
     <body hx-ext="sse" sse-connect="/updates">
         <div id="lightbox-overlay" class="lightbox-overlay"></div>
