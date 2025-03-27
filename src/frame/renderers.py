@@ -76,7 +76,7 @@ def render_nested(data, indent=0):
     return html
 
 
-def render_number_control(min: float, max: float, step: float, value: float, units: str, path: str):
+def render_number_control(name: str, min: float, max: float, step: float, value: float, units: str, path: str):
     """Render a number input with incrementing/decrementing capabilities via dragging.
     The value is constrained between min and max, and changes by step amount.
     When changed, it posts to the given path via HTMX."""
@@ -85,6 +85,7 @@ def render_number_control(min: float, max: float, step: float, value: float, uni
 
     return f"""
         <div class="number-control-container">
+            <label for="{id}">{name}:</label>
             <input type="number" 
                 id="{id}" 
                 min="{min}" 
@@ -184,11 +185,9 @@ def render_simple_value(name: str, path: str):
 def render_action(name: str, path: str, rendered: str):
     id = path.replace("/", "-")[1:]
     result = f"""
-        <div class="endpoint-container" id="container-{id}" data-path="{path}">
+        <div class="endpoint-container action-item" id="container-{id}" data-path="{path}" >
             <div class="header" style="align-items: center;">
-                <h3 style="margin-right: 10px;">{name}:</h3>
                 {rendered}
-                <div id="output-{id}" class="output-container" sse-swap="{id}" style="display: inline-block; margin-left: 15px;"></div>
             </div>
         </div>
     """
@@ -292,6 +291,9 @@ class ActionRenderer(RendererBase, name="action"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
 
+    def render_list_item(self, name: str, path: str) -> str:
+        return render_simple_value_side_by_side(name, path)
+
     def render_data(self, data: "ActionBase") -> str:
         id = uuid.uuid4().hex
 
@@ -310,9 +312,10 @@ class ActionRenderer(RendererBase, name="action"):
         """
 
 
-class SliderRenderer(RendererBase, name="slider"):
+class SliderRenderer(ActionRenderer, name="slider"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
+        self.display_name = settings.get("display_name", settings.get("name", "Slider"))
         self.min = settings.get("min", 0)
         self.max = settings.get("max", 100)
         self.step = settings.get("step", 1)
@@ -320,4 +323,4 @@ class SliderRenderer(RendererBase, name="slider"):
         self.units = settings.get("units", "")
 
     def render_data(self, data: "ActionBase") -> str:
-        return render_number_control(self.min, self.max, self.step, self.default, self.units, data.url)
+        return render_number_control(self.display_name, self.min, self.max, self.step, self.default, self.units, data.url)
