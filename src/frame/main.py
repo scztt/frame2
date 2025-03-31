@@ -24,6 +24,7 @@ import secrets
 from pydantic import BaseModel
 
 
+
 TOKENS = set()
 
 
@@ -51,7 +52,7 @@ def ordered_yaml_load(stream):
 
 
 app = FastAPI()
-config = Config(ordered_yaml_load(open("src/frame/examples/example_config.yaml")))
+config = Config(ordered_yaml_load(open("src/frame/examples/corecore.yaml")))
 
 
 # --- Login Page ---
@@ -79,32 +80,16 @@ async def login(response: Response, password: str = Form(...)):
 
 
 # Dependency to check token in cookie
-async def verify_token(request: Request):
+async def verify_token_redirect(request: Request):
     token = request.cookies.get("auth_token")
     if not token or token not in TOKENS:
         raise HTTPException(status_code=status.HTTP_302_FOUND, headers={"Location": "/login"})
 
-
-async def get_system_info():
-    """Runs system_profiler asynchronously and returns the parsed JSON output."""
-    process = await asyncio.create_subprocess_exec(
-        "system_profiler",
-        "-detailLevel",
-        "mini",
-        "-json",
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await process.communicate()
-
-    if process.returncode != 0:
-        return {"error": stderr.decode()}
-
-    try:
-        return json.loads(stdout.decode())
-    except json.JSONDecodeError as e:
-        return {"error": str(e)}
-
+# Dependency to check token in cookie
+async def verify_token_fail(request: Request):
+    token = request.cookies.get("auth_token")
+    if not token or token not in TOKENS:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
 
 def make_endpoints():
     endpoints_future = asyncio.Future[list[Dict[str, Any]]]()
@@ -138,7 +123,7 @@ def make_endpoints():
             )
 
         @app.get("/updates")
-        async def get_rendered_update_stream(_=Depends(verify_token)):
+        async def get_rendered_update_stream(_=Depends(verify_token_fail)):
             return StreamingResponse(
                 config.get_rendered_update_stream(),
                 media_type="text/event-stream",
@@ -152,7 +137,7 @@ def make_endpoints():
         async def do_action(
             action_name: str,
             params: Dict[str, Any] = {},
-            _=Depends(verify_token),
+            _=Depends(verify_token_redirect),
         ):
             params_to_use = params or {}
             return await config.do(action_name, params_to_use)
@@ -176,14 +161,14 @@ endpoints_future, actions_future = make_endpoints()
 
 @app.get("/style.css")
 async def get_css(
-    _=Depends(verify_token),
+    _=Depends(verify_token_redirect),
 ):
     return FileResponse("src/frame/static/style.css", media_type="text/css")
 
 
 @app.get("/script.js")
 async def get_script(
-    _=Depends(verify_token),
+    _=Depends(verify_token_redirect),
 ):
     return FileResponse("src/frame/static/script.js", media_type="text/javascript")
 
@@ -191,7 +176,7 @@ async def get_script(
 @app.get("/images/{image_name}")
 async def get_image(
     image_name: str,
-    _=Depends(verify_token),
+    _=Depends(verify_token_redirect),
 ):
     # Define directory where images are stored
     image_path = image_repo.get_image_path(image_name)
@@ -212,7 +197,7 @@ async def get_image(
 
 @app.get("/", response_class=HTMLResponse)
 async def home(
-    _=Depends(verify_token),
+    _=Depends(verify_token_redirect),
 ):
     # Define endpoints and their display names
 
