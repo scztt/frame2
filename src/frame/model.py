@@ -12,7 +12,7 @@ from frame.registry import set_defaults
 from frame.values import ValueDelegate, make_value
 
 
-State = Dict[str, Any]
+State = Dict[str, float|int|str|bool|None]
 
 Selector = Callable[[State], Any]
 Callback = Callable[[Any], None]
@@ -114,7 +114,7 @@ class Config:
     def parse_types(self, types: Dict[str, Any]):
         register_parsers(types.get("parsers", {}))
 
-    def parse_model(self, model_config: Dict[str, Any]) -> Tuple[Dict[str, Any], List[str]]:
+    def parse_model(self, model_config: Dict[str, Any]) -> Tuple[Dict[str, ValueDelegate], List[str]]:
         model_order: List[str] = []
         delegates: Dict[str, ValueDelegate] = {}
 
@@ -138,7 +138,7 @@ class Config:
     ##########################################################################
     # STATE
     ##########################################################################
-    def update(self, new_model: Dict[str, ValueDelegate]):
+    def update(self, new_model: State):
         old_model = self.state
         self.state = new_model
         for trigger in self.triggers:
