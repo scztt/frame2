@@ -17,20 +17,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Set up lightbox overlay click handler
-    document.getElementById('lightbox-overlay').addEventListener('click', function () {
-        const fullsizeImages = document.querySelectorAll('.fullsize');
-        fullsizeImages.forEach(img => {
-            img.classList.remove('fullsize');
-        });
-        this.classList.remove('active');
-    });
-
-    // Set up image click handlers after content is loaded
-    document.body.addEventListener('htmx:afterOnLoad', function () {
-        setupImageHandlers();
-    });
-
     document.querySelectorAll('.refresh-icon').forEach(el => {
         el.addEventListener('click', () => {
             el.classList.remove('rotate'); // reset if clicked again
@@ -38,22 +24,18 @@ document.addEventListener('DOMContentLoaded', function () {
             el.classList.add('rotate');
         });
     });
+
+    setupImageHandlers();
 });
 
 function setupImageHandlers() {
-    document.querySelectorAll('.screenshot-img').forEach(img => {
-        img.addEventListener('click', function (e) {
-            const overlay = document.getElementById('lightbox-overlay');
-
-            if (this.classList.contains('fullsize')) {
-                this.classList.remove('fullsize');
-                overlay.classList.remove('active');
-            } else {
-                this.classList.add('fullsize');
-                overlay.classList.add('active');
-                e.stopPropagation();
-            }
+    // Set up lightbox overlay click handler
+    document.getElementById('lightbox-overlay').addEventListener('click', function () {
+        const fullsizeImages = document.querySelectorAll('.fullsize');
+        fullsizeImages.forEach(img => {
+            img.classList.remove('fullsize');
         });
+        this.classList.remove('active');
     });
 }
 

@@ -65,7 +65,6 @@ class Config:
     delegates: Dict[str, ValueDelegate]
     actions: Dict[str, ActionBase]
     actions_order: List[str]
-    actions_order: List[str]
     triggers: List[Trigger] = []
     update_tasks: Dict[str, asyncio.Task[Any]] = {}
     password_hash: str
