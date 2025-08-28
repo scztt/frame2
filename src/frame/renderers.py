@@ -333,15 +333,17 @@ class ActionRenderer(RendererBase, name="action"):
         btn_id = f"btn-{id}"
         output_id = f"output-{id}"
         return f"""
-            <button id="{btn_id}" class="action-button" 
-            hx-post="{data.url}" 
-            hx-target="#{output_id}" 
-            hx-swap="innerHTML"
-            hx-headers='{{"Content-Type": "application/json"}}'
-            hx-vals='{{}}'>
-            {data.display_name}
-            </button>
-            <div id="{output_id}" class="action-output"></div>
+            <div style="display: block;">
+                <button id="{btn_id}" class="action-button" 
+                hx-post="{data.url}" 
+                hx-target="#{output_id}" 
+                hx-swap="innerHTML"
+                hx-headers='{{"Content-Type": "application/json"}}'
+                hx-vals='{{}}'>
+                {data.display_name}
+                </button>
+                <div id="{output_id}" class="action-output"></div>
+            </div>
         """
 
 

@@ -177,6 +177,16 @@ h1 {
     width: 100%;
 }
 
+.action-output {
+    font-family: monospace;
+    font-size: 10px;
+    display: block;
+    margin-top: 8px;
+    background-color: #f5f5f5;
+    padding: 4px;
+    border-radius: 2px;
+}
+
 
 .action-container {
     flex: 1 0 calc(33.333% - 10px);
