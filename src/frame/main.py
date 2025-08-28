@@ -52,7 +52,7 @@ def ordered_yaml_load(stream):
 
 
 app = FastAPI()
-config = Config(ordered_yaml_load(open("src/frame/examples/corecore.yaml")))
+config = Config(ordered_yaml_load(open("src/frame/examples/example_config.yaml")))
 
 
 # --- Login Page ---

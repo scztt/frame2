@@ -47,12 +47,13 @@ class ShellAction(ActionBase, name="shell"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
         self.command = settings["cmd"]
-        self.parser = make_parser(settings.get("parser", "string"))
+        self.parser, _ = make_parser(settings.get("parser", "string"))
+        self.sudo = settings.get("sudo", False)
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(settings["renderer"])
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
-        result_str = await run_command(self.command)
+        result_str = await run_command(self.command, sudo=self.sudo)
         result = self.parser(result_str)
         return result
 

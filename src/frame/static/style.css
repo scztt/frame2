@@ -364,4 +364,109 @@ input[type="password"] {
     }
 }
 
+/* Setup list styling */
+
+.setup-item {
+    display: flex;
+    align-items: center;
+    padding: 0.75rem 1rem;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    border: 1px solid var(--border-color);
+    margin-bottom: 0.5rem;
+    transition: all 0.2s ease;
+}
+
+.setup-item:hover {
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.setup-item-success {
+    border-left: 4px solid #28a745;
+    background-color: rgba(40, 167, 69, 0.05);
+}
+
+.setup-item-warning {
+    border-left: 4px solid #ffc107;
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.setup-item-error {
+    border-left: 4px solid #dc3545;
+    background-color: rgba(220, 53, 69, 0.05);
+}
+
+.setup-status {
+    font-size: 1.2rem;
+    margin-right: 0.75rem;
+    font-weight: bold;
+}
+
+.setup-item-success .setup-status {
+    color: #28a745;
+}
+
+.setup-item-warning .setup-status {
+    color: #ffc107;
+}
+
+.setup-name {
+    font-weight: 500;
+    margin-right: 0.5rem;
+    color: var(--text-primary);
+}
+
+.setup-type {
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+.setup-container {
+    margin-top: 2rem;
+    background-color: var(--card-bg);
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.setup-container .header {
+    background-color: var(--card-bg);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.setup-list {
+    padding: 1rem;
+}
+
+.setup-container .toggle-icon {
+    transition: transform 0.2s ease;
+}
+
+.refresh-button {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 0.9rem;
+    margin-left: auto;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.refresh-button:hover:not(:disabled) {
+    background-color: var(--accent-color);
+    color: white;
+    border-color: var(--accent-color);
+}
+
+.refresh-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.setup-error {
+    color: #dc3545;
+    font-size: 0.8rem;
+    margin-left: 0.5rem;
 }

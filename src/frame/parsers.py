@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Any, Dict
+from typing import Any, Dict, Tuple
 
 from frame.registry import TypeRegistry
 
@@ -92,7 +92,7 @@ class DetectParser(RegexParser, name="detect"):
 class SequenceParser(ParserBase, name="sequence"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
-        self.parsers = [make_parser(parser) for parser in settings["parsers"]]
+        self.parsers = [make_parser(parser)[0] for parser in settings["parsers"]]
 
     def __call__(self, value: str) -> Any:
         for parser in self.parsers:
@@ -105,5 +105,5 @@ def register_parsers(settings: Dict[str, Any]) -> None:
         registry.register_ref(name, ref_settings)
 
 
-def make_parser(settings: str | Dict[str, Any]) -> ParserBase:
+def make_parser(settings: str | Dict[str, Any]) -> Tuple[ParserBase, Dict[str, Any]]:
     return registry.make(settings)

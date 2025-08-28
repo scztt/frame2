@@ -33,6 +33,7 @@ class GetValue(ValueBase, name="get"):
 
 
 class ValueDelegate:
+    name: str
     display_name: str
     update_time: float | None
     renderer: RendererBase
@@ -43,6 +44,7 @@ class ValueDelegate:
         desc: Dict[str, Any],
     ):
         super().__init__()
+        self.name = name
         self.display_name = desc.get("name", name)
         self.update_time = float(desc.get("poll")) if desc.get("poll") else None
 
@@ -71,9 +73,10 @@ class ShellGetter(ValueBase, name="shell"):
         super().__init__(settings)
         self.command = settings["cmd"]
         self.parser, _ = make_parser(settings.get("parser", "string"))
+        self.sudo = settings.get("sudo", False)
 
     async def get(self):
-        result_str = await run_command(self.command)
+        result_str = await run_command(self.command, sudo=self.sudo)
         result = self.parser(result_str)
         return result
 
@@ -86,6 +89,7 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
         self.y = settings.get("y", None)
         self.width = settings.get("width", None)
         self.height = settings.get("height", None)
+        self.sudo = settings.get("sudo", False)
         self.id = "screenshot"
 
     async def get(self):
@@ -97,11 +101,12 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
                     "-R",
                     f"{self.x},{self.y},{self.width},{self.height}",
                     ref.path,
-                ]
+                ],
+                sudo=self.sudo,
             )
             return ref
         else:
-            await run_command(["screencapture", ref.path])
+            await run_command(["screencapture", ref.path], sudo=self.sudo)
             return ref
 
 

@@ -26,6 +26,18 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 
     setupImageHandlers();
+    
+    // Setup event listener for setup toggle
+    const setupHeader = document.getElementById('setup-header');
+    if (setupHeader) {
+        setupHeader.addEventListener('click', toggleSetup);
+    }
+    
+    // Restore setup state
+    const setupExpanded = localStorage.getItem('setup_expanded') === 'true';
+    if (setupExpanded) {
+        toggleSetup();
+    }
 });
 
 function setupImageHandlers() {
@@ -54,6 +66,31 @@ function toggleSection(path, id) {
             // Trigger the htmx request without the animation
             htmx.ajax('GET', refreshIcon.getAttribute('hx-get'), { target: refreshIcon.getAttribute('hx-target') });
         }
+    }
+}
+
+function toggleSetup() {
+    const setupList = document.getElementById('setup-list');
+    const toggleIcon = document.querySelector('.setup-container .toggle-icon');
+    
+    if (!setupList || !toggleIcon) {
+        console.error('Could not find setup elements');
+        return;
+    }
+    
+    // Check current state - initially hidden by inline style
+    const isCurrentlyHidden = setupList.style.display === 'none' || setupList.style.display === '';
+    
+    if (isCurrentlyHidden) {
+        setupList.style.display = 'block';
+        toggleIcon.textContent = '▼';
+        toggleIcon.style.transform = 'rotate(90deg)';
+        localStorage.setItem('setup_expanded', 'true');
+    } else {
+        setupList.style.display = 'none';
+        toggleIcon.textContent = '▶';
+        toggleIcon.style.transform = 'rotate(0deg)';
+        localStorage.setItem('setup_expanded', 'false');
     }
 }
 
