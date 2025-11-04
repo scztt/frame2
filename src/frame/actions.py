@@ -151,7 +151,12 @@ class NotificationAction(ActionBase, name="notification"):
 class SequenceAction(ActionBase, name="sequence"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
-        self.actions = settings["actions"]
+        self.actions = []
+        for i, action_config in enumerate(settings["actions"]):
+            action_name = f"{self.name}_{i}"
+            action_instance = make_action(config, action_name, action_config)
+            self.actions.append(action_instance)
+
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(settings["renderer"])
 
@@ -174,3 +179,26 @@ class OSCAction(ActionBase, name="osc"):
     async def call(self, params: Dict[str, Any], get_action) -> Any:
         msg = [item for pair in params.items() for item in pair]
         self.client.send_message(self.path, msg)
+
+
+class FileWriteAction(ActionBase, name="file_write"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.path = settings["path"]
+        self.template_str = settings["template"]
+        self.template = jinja2.Template(self.template_str)
+        self.append = settings.get("append", False)
+
+        if settings.get("renderer"):
+            self.renderer, _ = make_renderer(settings["renderer"])
+
+    def _write_sync(self, content: str):
+        mode = 'a' if self.append else 'w'
+        with open(self.path, mode) as f:
+            f.write(content)
+
+    async def call(self, params: Dict[str, Any], get_action) -> Any:
+        rendered_content = self.template.render(**params)
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, self._write_sync, rendered_content)
+        return None
