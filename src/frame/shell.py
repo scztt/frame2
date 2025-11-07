@@ -3,6 +3,9 @@ import asyncio
 import os
 from typing import List, Union
 
+class ShellError(Exception):
+    def __init__(self, message: str):
+        super().__init__(message)
 
 async def run_command_str(value: str, sudo: bool = False):
     if sudo:
@@ -24,7 +27,7 @@ async def run_command_str(value: str, sudo: bool = False):
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        raise Exception(stderr.decode())
+        raise ShellError(stderr.decode())
 
     return stdout.decode()
 

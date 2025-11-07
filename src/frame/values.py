@@ -5,7 +5,7 @@ from frame.images import image_repo
 from frame.parsers import make_parser
 from frame.registry import TypeRegistry
 from frame.renderers import RendererBase, make_renderer
-from frame.shell import run_command
+from frame.shell import run_command, ShellError
 from frame.utility import tail_lines
 import os
 
@@ -79,8 +79,21 @@ class ShellGetter(ValueBase, name="shell"):
         result_str = await run_command(self.command, sudo=self.sudo)
         result = self.parser(result_str)
         return result
+    
+class ShellReturnCodeGetter(ValueBase, name="shell_result"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+        self.command = settings["cmd"]
+        self.parser, _ = make_parser(settings.get("parser", "string"))
+        self.sudo = settings.get("sudo", False)
 
-
+    async def get(self):
+        try:
+            result_str = await run_command(self.command, sudo=self.sudo)
+            return True
+        except ShellError as e:
+            return False
 class ScreenshotGetter(ValueBase, name="screenshot"):
     def __init__(self, settings):
         settings["renderer"] = settings.get("renderer", "image")
@@ -108,7 +121,6 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
         else:
             await run_command(["screencapture", ref.path], sudo=self.sudo)
             return ref
-
 
 class Tail(ValueBase, name="tail"):
     def __init__(self, settings):
