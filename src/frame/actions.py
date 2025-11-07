@@ -4,6 +4,7 @@ from frame.registry import TypeRegistry
 from frame.renderers import RendererBase, make_renderer
 from frame.shell import run_command
 from frame.parsers import make_parser
+from pathlib import Path
 from pythonosc import udp_client
 import jinja2
 import asyncio
@@ -33,7 +34,8 @@ actions = TypeRegistry[ActionBase]("action", {"renderer": "action"})
 
 
 def make_action(config: "Config", name: str, settings: str | Dict[str, Any]) -> ActionBase:
-    settings["name"] = name
+    if isinstance(settings, Dict):
+        settings["name"] = name
     return actions.make(
         settings,
         config=config,
@@ -149,20 +151,27 @@ class NotificationAction(ActionBase, name="notification"):
 
 
 class SequenceAction(ActionBase, name="sequence"):
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: Dict[str, Any], config: "Config"):
         super().__init__(settings)
         self.actions = []
         for i, action_config in enumerate(settings["actions"]):
-            action_name = f"{self.name}_{i}"
-            action_instance = make_action(config, action_name, action_config)
-            self.actions.append(action_instance)
+            if isinstance(action_config, Dict):
+                action_name = f"{self.name}_{i}"
+                action_instance = make_action(config, action_name, action_config)
+                self.actions.append(action_instance)
+            else:
+                self.actions.append(action_config)
 
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(settings["renderer"])
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
         for action in self.actions:
-            await get_action(action).call(params, get_action)
+            resolved_action = action
+            if isinstance(action, str):
+                resolved_action = get_action(action)
+            await resolved_action.call(params, get_action)
+            
         return None
 
 
@@ -184,7 +193,7 @@ class OSCAction(ActionBase, name="osc"):
 class FileWriteAction(ActionBase, name="file_write"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
-        self.path = settings["path"]
+        self.path = Path(settings["path"]).expanduser().absolute()
         self.template_str = settings["template"]
         self.template = jinja2.Template(self.template_str)
         self.append = settings.get("append", False)
