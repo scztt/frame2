@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "Provisioning, automation, and remote management for installations and exhibitions."
 authors = [
     { name = "Scott Carver", email = "scott@artificia.org" },
-    { name = "scott carver", email = "scott@artificia.org" },
 ]
 requires-python = ">=3.13"
 dependencies = [
@@ -19,14 +18,11 @@ dependencies = [
 readme = "README.md"
 license = { text = "MIT" }
 
-[tool.setuptools]
-packages = ["src/frame"]
+[project.scripts]
+frame = "frame.cli:app_cli"
 
 [tool.black]
 line-length = 200
-
-[tool.pdm]
-distribution = true
 
 [build-system]
 requires = ["flit_core>=3.2,<4"]
@@ -40,6 +36,8 @@ dev = [
     "httpx>=0.28.1",
     "dotbot>=1.21.0",
     "pylance>=0.23.2",
+    "py-spy>=0.4.0",
+    "yappi>=1.6.10",
 ]
 
 [tool.uvicorn]
