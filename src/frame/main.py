@@ -22,7 +22,11 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2Pas
 from datetime import datetime, timedelta
 import secrets
 from pydantic import BaseModel
+import logging
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 
 TOKENS = set()
@@ -52,7 +56,21 @@ def ordered_yaml_load(stream):
 
 
 app = FastAPI()
-config = Config(ordered_yaml_load(open("src/frame/examples/example_config.yaml")))
+
+# Load config from path specified in env var or use default
+config_path = os.environ.get("FRAME_CONFIG_PATH", "src/frame/examples/example_config.yaml")
+logger.info(f"📋 Loading config from: {config_path}")
+logger.info(f"   FRAME_CONFIG_PATH env var: {os.environ.get('FRAME_CONFIG_PATH', 'NOT SET')}")
+
+try:
+    config = Config(ordered_yaml_load(open(config_path)))
+    logger.info(f"✅ Config loaded successfully from {config_path}")
+except FileNotFoundError:
+    logger.error(f"❌ Config file not found: {config_path}")
+    raise
+except Exception as e:
+    logger.error(f"❌ Error loading config: {e}")
+    raise
 
 
 # --- Login Page ---
@@ -99,11 +117,13 @@ async def verify_token_redirect(request: Request):
     if not token or token not in TOKENS:
         raise HTTPException(status_code=status.HTTP_302_FOUND, headers={"Location": "/login"})
 
+
 # Dependency to check token in cookie
 async def verify_token_fail(request: Request):
     token = request.cookies.get("auth_token")
     if not token or token not in TOKENS:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
+
 
 def make_endpoints():
     endpoints_future = asyncio.Future[list[Dict[str, Any]]]()
