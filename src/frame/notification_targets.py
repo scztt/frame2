@@ -1,5 +1,6 @@
 from typing import Any, Dict
 
+from pythonosc import udp_client
 from fastapi import requests
 from frame.registry import TypeRegistry
 import json
@@ -61,3 +62,21 @@ class IFTTT(NotificationTargetBase, name="ifttt"):
             # Log the error or handle it as needed
             print(e)
             return {"error": str(e)}
+
+class OSCTarget(NotificationTargetBase, name="osc"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.path = settings["path"]
+        self.args = settings.get("args", [])
+        self.client = udp_client.SimpleUDPClient(settings["address"], int(settings["port"]))
+
+    async def notify(self, data: Dict[str, Any]) -> Any:
+        value = data.get("message")
+        try:
+            value = int(value)
+        except Exception:
+            value = float(value)
+        except Exception:
+            pass
+        self.client.send_message(self.path, value)
+
