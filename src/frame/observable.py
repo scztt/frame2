@@ -330,12 +330,74 @@ class Model:
 
         return self._current_values.get(key)
 
+    def set_value(self, key: str, value: Any) -> None:
+        """
+        Set a value for a mode=value model key (PUT semantics).
+
+        Only emits if value changed (handled by Changed operator).
+
+        Args:
+            key: Model key name
+            value: Value to set
+
+        Raises:
+            KeyError: If key not defined
+            ValueError: If key is mode=event (use fire_event instead)
+        """
+        if key not in self._raw_observables:
+            raise KeyError(f"Model key '{key}' not defined")
+
+        if self._modes[key] != 'value':
+            raise ValueError(f"Cannot set_value on mode=event key '{key}'. Use fire_event() instead.")
+
+        # Type coercion
+        expected_type = self._types[key]
+        try:
+            typed_value = expected_type(value)
+        except (ValueError, TypeError):
+            typed_value = value  # Pass through if coercion fails
+
+        # Emit to the raw observable (Changed filter applies automatically)
+        self._raw_observables[key].emit(typed_value)
+
+    def fire_event(self, key: str, payload: Any = None) -> None:
+        """
+        Fire an event for a mode=event model key (POST semantics).
+
+        Always emits, regardless of payload value.
+
+        Args:
+            key: Model key name
+            payload: Event payload (optional)
+
+        Raises:
+            KeyError: If key not defined
+            ValueError: If key is mode=value (use set_value instead)
+        """
+        if key not in self._raw_observables:
+            raise KeyError(f"Model key '{key}' not defined")
+
+        if self._modes[key] != 'event':
+            raise ValueError(f"Cannot fire_event on mode=value key '{key}'. Use set_value() instead.")
+
+        # Type coercion
+        expected_type = self._types[key]
+        try:
+            typed_payload = expected_type(payload)
+        except (ValueError, TypeError):
+            typed_payload = payload  # Pass through if coercion fails
+
+        # Emit to the raw observable (always forwards for event mode)
+        self._raw_observables[key].emit(typed_payload)
+
     def set(self, key: str, value: Any) -> None:
         """
         Set a value for a model key (emits to its Observable).
 
         For mode=value items, only emits if value changed (handled by Changed operator).
         For mode=event items, always emits.
+
+        Note: Prefer set_value() for mode=value and fire_event() for mode=event for clarity.
 
         Args:
             key: Model key name

@@ -438,3 +438,82 @@ class TestYAMLIntegration:
         model.set('cpu', 67.8)
 
         assert received == [45.2, 67.8]
+
+
+class TestModelEntrypoints:
+    """Test separate entrypoints for values vs events (PUT vs POST semantics)."""
+
+    def test_set_value_for_value_mode(self):
+        """Test set_value() works for mode=value items."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        model.get('cpu').subscribe(lambda x: received.append(x))
+
+        model.set_value('cpu', 45.2)
+        model.set_value('cpu', 45.2)  # Filtered
+        model.set_value('cpu', 67.8)
+
+        assert received == [45.2, 67.8]
+
+    def test_set_value_raises_for_event_mode(self):
+        """Test set_value() raises ValueError for mode=event items."""
+        config = {
+            'button_click': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        with pytest.raises(ValueError, match="mode=event.*Use fire_event"):
+            model.set_value('button_click', 'click')
+
+    def test_fire_event_for_event_mode(self):
+        """Test fire_event() works for mode=event items."""
+        config = {
+            'button_click': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        model.get('button_click').subscribe(lambda x: received.append(x))
+
+        model.fire_event('button_click', 'click')
+        model.fire_event('button_click', 'click')  # Not filtered!
+        model.fire_event('button_click', 'click')
+
+        assert received == ['click', 'click', 'click']
+
+    def test_fire_event_raises_for_value_mode(self):
+        """Test fire_event() raises ValueError for mode=value items."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
+        }
+        model = Model.from_dict(config)
+
+        with pytest.raises(ValueError, match="mode=value.*Use set_value"):
+            model.fire_event('cpu', 45.2)
+
+    def test_mixed_entrypoints(self):
+        """Test using both entrypoints in the same model."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0},
+            'button': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        cpu_values = []
+        button_clicks = []
+
+        model.get('cpu').subscribe(lambda x: cpu_values.append(x))
+        model.get('button').subscribe(lambda x: button_clicks.append(x))
+
+        model.set_value('cpu', 45.2)
+        model.fire_event('button', 'click')
+        model.set_value('cpu', 45.2)      # Filtered
+        model.fire_event('button', 'click') # Not filtered
+        model.set_value('cpu', 67.8)
+
+        assert cpu_values == [45.2, 67.8]
+        assert button_clicks == ['click', 'click']
