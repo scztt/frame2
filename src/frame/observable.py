@@ -235,9 +235,65 @@ class Model:
     Usage:
         model = Model.from_dict(config)
         model.get('cpu').subscribe(callback)  # Already change-filtered
-        model.set('cpu', 45.2)
+
+        # Atomic mutations via context manager
+        with model.mutable() as m:
+            m.push('cpu', 45.2)
+            m.push('button_click', 'click')
+        # All changes applied atomically on exit
+
         model.get_value('cpu')  # Get current value (only for mode=value)
     """
+
+    class Mutable:
+        """Context manager for atomic state mutations (value items only)."""
+
+        def __init__(self, model: 'Model'):
+            self.model = model
+            self.state: Dict[str, Any] = {}
+
+        def __enter__(self) -> 'Model.Mutable':
+            # Copy current state
+            self.state = dict(self.model._current_values)
+            return self
+
+        def __exit__(self, exc_type, exc_value, traceback):  # type: ignore
+            if exc_type is None:
+                # Only apply changes if no exception
+                self.model.update(self.state)
+
+        def __setitem__(self, key: str, value: Any) -> None:
+            """
+            Set a value for a mode=value item.
+
+            Args:
+                key: Model key name
+                value: Value to set
+
+            Raises:
+                KeyError: If key not defined
+                ValueError: If key is mode=event (use model.emit() instead)
+            """
+            if key not in self.model._modes:
+                raise KeyError(f"Model key '{key}' not defined")
+
+            if self.model._modes[key] != 'value':
+                raise ValueError(f"Cannot set mode=event key '{key}' in mutable context. Use model.emit() instead.")
+
+            # Type coercion
+            expected_type = self.model._types[key]
+            try:
+                typed_value = expected_type(value)
+            except (ValueError, TypeError):
+                typed_value = value  # Pass through if coercion fails
+
+            self.state[key] = typed_value
+
+        def __getitem__(self, key: str) -> Any:
+            """Get current value from mutable state."""
+            if key not in self.state:
+                raise KeyError(f"Model key '{key}' not defined")
+            return self.state[key]
 
     def __init__(self):
         self._raw_observables: Dict[str, Observable] = {}  # For emitting
@@ -330,84 +386,42 @@ class Model:
 
         return self._current_values.get(key)
 
-    def set_value(self, key: str, value: Any) -> None:
+    def mutable(self) -> 'Model.Mutable':
         """
-        Set a value for a mode=value model key (PUT semantics).
+        Create a context manager for atomic state mutations.
 
-        Only emits if value changed (handled by Changed operator).
+        Only for mode=value items. Use emit() to fire events.
+
+        Returns:
+            Mutable context manager
+
+        Example:
+            with model.mutable() as m:
+                m['cpu'] = 45.2
+                m['memory'] = 1024.0
+            # All state changes applied atomically on exit
+        """
+        return self.Mutable(self)
+
+    def emit(self, key: str, value: Any) -> None:
+        """
+        Fire an event immediately (for mode=event items).
+
+        This is atomic - the event fires immediately.
 
         Args:
             key: Model key name
-            value: Value to set
+            value: Event payload
 
         Raises:
             KeyError: If key not defined
-            ValueError: If key is mode=event (use fire_event instead)
-        """
-        if key not in self._raw_observables:
-            raise KeyError(f"Model key '{key}' not defined")
-
-        if self._modes[key] != 'value':
-            raise ValueError(f"Cannot set_value on mode=event key '{key}'. Use fire_event() instead.")
-
-        # Type coercion
-        expected_type = self._types[key]
-        try:
-            typed_value = expected_type(value)
-        except (ValueError, TypeError):
-            typed_value = value  # Pass through if coercion fails
-
-        # Emit to the raw observable (Changed filter applies automatically)
-        self._raw_observables[key].emit(typed_value)
-
-    def fire_event(self, key: str, payload: Any = None) -> None:
-        """
-        Fire an event for a mode=event model key (POST semantics).
-
-        Always emits, regardless of payload value.
-
-        Args:
-            key: Model key name
-            payload: Event payload (optional)
-
-        Raises:
-            KeyError: If key not defined
-            ValueError: If key is mode=value (use set_value instead)
+            ValueError: If key is mode=value (use mutable() instead)
         """
         if key not in self._raw_observables:
             raise KeyError(f"Model key '{key}' not defined")
 
         if self._modes[key] != 'event':
-            raise ValueError(f"Cannot fire_event on mode=value key '{key}'. Use set_value() instead.")
-
-        # Type coercion
-        expected_type = self._types[key]
-        try:
-            typed_payload = expected_type(payload)
-        except (ValueError, TypeError):
-            typed_payload = payload  # Pass through if coercion fails
-
-        # Emit to the raw observable (always forwards for event mode)
-        self._raw_observables[key].emit(typed_payload)
-
-    def set(self, key: str, value: Any) -> None:
-        """
-        Set a value for a model key (emits to its Observable).
-
-        For mode=value items, only emits if value changed (handled by Changed operator).
-        For mode=event items, always emits.
-
-        Note: Prefer set_value() for mode=value and fire_event() for mode=event for clarity.
-
-        Args:
-            key: Model key name
-            value: Value to emit
-
-        Raises:
-            KeyError: If key not defined
-        """
-        if key not in self._raw_observables:
-            raise KeyError(f"Model key '{key}' not defined")
+            raise ValueError(f"Cannot emit on mode=value key '{key}'. Use mutable() context manager instead.")
 
         # Type coercion
         expected_type = self._types[key]
@@ -416,8 +430,27 @@ class Model:
         except (ValueError, TypeError):
             typed_value = value  # Pass through if coercion fails
 
-        # Emit to the raw observable (Changed filter applies automatically for value mode)
+        # Emit immediately
         self._raw_observables[key].emit(typed_value)
+
+    def update(self, new_state: Dict[str, Any]) -> None:
+        """
+        Apply atomic state updates to the model.
+
+        Called by Mutable context manager on exit.
+        Only emits state changes for values that actually changed.
+
+        Args:
+            new_state: New values for all mode=value items
+        """
+        old_state = self._current_values
+        for key, new_value in new_state.items():
+            if key in self._raw_observables:
+                old_value = old_state.get(key)
+                if old_value != new_value:
+                    # Emit to raw observable, Changed operator will handle filtering
+                    # But we already checked it changed, so it will pass through
+                    self._raw_observables[key].emit(new_value)
 
     def keys(self) -> List[str]:
         """Get all defined model keys."""

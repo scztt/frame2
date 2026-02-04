@@ -159,16 +159,18 @@ class TestModel:
         assert cpu_obs is not None
         assert status_obs is not None
 
-    def test_model_set_emits_value(self):
-        """Test setting model value emits to observable."""
+    def test_model_mutable_emits_value(self):
+        """Test mutable context manager emits values."""
         model = Model()
         model.define('cpu', 'number')
 
         received = []
         model.get('cpu').subscribe(lambda x: received.append(x))
 
-        model.set('cpu', 45.2)
-        model.set('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert received == [45.2, 67.8]
 
@@ -180,7 +182,8 @@ class TestModel:
         received = []
         model.get('count').subscribe(lambda x: received.append(x))
 
-        model.set('count', "42")  # String input
+        with model.mutable() as m:
+            m['count'] = "42"  # String input
         assert received == [42.0]  # Coerced to float
 
     def test_model_keys(self):
@@ -200,7 +203,8 @@ class TestModel:
             model.get('nonexistent')
 
         with pytest.raises(KeyError, match="not defined"):
-            model.set('nonexistent', 42)
+            with model.mutable() as m:
+                m['nonexistent'] = 42
 
     def test_model_from_dict(self):
         """Test creating model from dict config."""
@@ -216,7 +220,8 @@ class TestModel:
         # Should work
         received = []
         model.get('cpu').subscribe(lambda x: received.append(x))
-        model.set('cpu', 50.0)
+        with model.mutable() as m:
+            m['cpu'] = 50.0
         assert received == [50.0]
 
 
@@ -233,10 +238,14 @@ class TestModelWithObservables:
             Changed(initial=-10.0)
         ).subscribe(lambda x: received.append(x))
 
-        model.set('volume', -10.0)  # Filtered (same as initial)
-        model.set('volume', -5.0)   # Emitted
-        model.set('volume', -5.0)   # Filtered (duplicate)
-        model.set('volume', -8.0)   # Emitted
+        with model.mutable() as m:
+            m['volume'] = -10.0  # Filtered (same as initial)
+        with model.mutable() as m:
+            m['volume'] = -5.0   # Emitted
+        with model.mutable() as m:
+            m['volume'] = -5.0   # Filtered (duplicate)
+        with model.mutable() as m:
+            m['volume'] = -8.0   # Emitted
 
         assert received == [-5.0, -8.0]
 
@@ -251,10 +260,14 @@ class TestModelWithObservables:
             Log(prefix="CPU")
         ).subscribe(lambda x: received.append(x))
 
-        model.set('cpu', 0.0)   # Filtered
-        model.set('cpu', 45.2)  # Passes through
-        model.set('cpu', 45.2)  # Filtered
-        model.set('cpu', 67.8)  # Passes through
+        with model.mutable() as m:
+            m['cpu'] = 0.0   # Filtered
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Passes through
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8  # Passes through
 
         captured = capsys.readouterr()
         assert "CPU: 45.2" in captured.out
@@ -294,10 +307,14 @@ class TestModelModes:
         received = []
         model.get('cpu').subscribe(lambda x: received.append(x))
 
-        model.set('cpu', 0.0)   # Same as default, filtered
-        model.set('cpu', 45.2)  # Changed, emitted
-        model.set('cpu', 45.2)  # Duplicate, filtered
-        model.set('cpu', 67.8)  # Changed, emitted
+        with model.mutable() as m:
+            m['cpu'] = 0.0   # Same as default, filtered
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Changed, emitted
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Duplicate, filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8  # Changed, emitted
 
         assert received == [45.2, 67.8]
 
@@ -311,9 +328,9 @@ class TestModelModes:
         received = []
         model.get('button_click').subscribe(lambda x: received.append(x))
 
-        model.set('button_click', 'click')
-        model.set('button_click', 'click')  # Not filtered!
-        model.set('button_click', 'click')  # Not filtered!
+        model.emit('button_click', 'click')
+        model.emit('button_click', 'click')  # Not filtered!
+        model.emit('button_click', 'click')  # Not filtered!
 
         assert received == ['click', 'click', 'click']
 
@@ -329,10 +346,12 @@ class TestModelModes:
 
         assert model.get_value('cpu') == 0.0
 
-        model.set('cpu', 45.2)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
         assert model.get_value('cpu') == 45.2
 
-        model.set('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 67.8
         assert model.get_value('cpu') == 67.8
 
     def test_get_value_raises_for_event_mode(self):
@@ -356,9 +375,12 @@ class TestModelModes:
         received = []
         model.get('cpu').subscribe(lambda x: received.append(x))
 
-        model.set('cpu', 0.0)   # Filtered (same as default)
-        model.set('cpu', 45.2)  # Emitted
-        model.set('cpu', 45.2)  # Filtered
+        with model.mutable() as m:
+            m['cpu'] = 0.0   # Filtered (same as default)
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Emitted
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Filtered
 
         assert received == [45.2]
 
@@ -376,11 +398,14 @@ class TestModelModes:
         model.get('cpu').subscribe(lambda x: cpu_values.append(x))
         model.get('button').subscribe(lambda x: button_clicks.append(x))
 
-        model.set('cpu', 45.2)
-        model.set('button', 'click')
-        model.set('cpu', 45.2)      # Filtered
-        model.set('button', 'click') # Not filtered
-        model.set('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+        model.emit('button', 'click')
+        with model.mutable() as m:
+            m['cpu'] = 45.2      # Filtered
+        model.emit('button', 'click')  # Not filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert cpu_values == [45.2, 67.8]
         assert button_clicks == ['click', 'click']
@@ -409,12 +434,17 @@ class TestYAMLIntegration:
         model.get('memory').subscribe(lambda x: memory_values.append(x))
         model.get('status').subscribe(lambda x: status_values.append(x))
 
-        # Emit values
-        model.set('cpu', 45.2)
-        model.set('memory', 1024.0)
-        model.set('status', 'running')
-        model.set('cpu', 45.2)  # Automatically filtered
-        model.set('cpu', 67.8)
+        # Apply values atomically
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+            m['memory'] = 1024.0
+            m['status'] = 'running'
+
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Automatically filtered
+
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert cpu_values == [45.2, 67.8]
         assert memory_values == [1024.0]
@@ -433,18 +463,21 @@ class TestYAMLIntegration:
             lambda x: received.append(x)
         )
 
-        model.set('cpu', 45.2)
-        model.set('cpu', 45.2)  # Filtered
-        model.set('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert received == [45.2, 67.8]
 
 
-class TestModelEntrypoints:
-    """Test separate entrypoints for values vs events (PUT vs POST semantics)."""
+class TestModelMutations:
+    """Test atomic mutations with mutable() and emit()."""
 
-    def test_set_value_for_value_mode(self):
-        """Test set_value() works for mode=value items."""
+    def test_mutable_for_value_mode(self):
+        """Test mutable() works for mode=value items."""
         config = {
             'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
         }
@@ -453,24 +486,28 @@ class TestModelEntrypoints:
         received = []
         model.get('cpu').subscribe(lambda x: received.append(x))
 
-        model.set_value('cpu', 45.2)
-        model.set_value('cpu', 45.2)  # Filtered
-        model.set_value('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+        with model.mutable() as m:
+            m['cpu'] = 45.2  # Filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert received == [45.2, 67.8]
 
-    def test_set_value_raises_for_event_mode(self):
-        """Test set_value() raises ValueError for mode=event items."""
+    def test_mutable_raises_for_event_mode(self):
+        """Test mutable[] raises ValueError for mode=event items."""
         config = {
             'button_click': {'mode': 'event'}
         }
         model = Model.from_dict(config)
 
-        with pytest.raises(ValueError, match="mode=event.*Use fire_event"):
-            model.set_value('button_click', 'click')
+        with pytest.raises(ValueError, match="mode=event.*Use model.emit"):
+            with model.mutable() as m:
+                m['button_click'] = 'click'
 
-    def test_fire_event_for_event_mode(self):
-        """Test fire_event() works for mode=event items."""
+    def test_emit_for_event_mode(self):
+        """Test emit() works for mode=event items."""
         config = {
             'button_click': {'mode': 'event'}
         }
@@ -479,24 +516,24 @@ class TestModelEntrypoints:
         received = []
         model.get('button_click').subscribe(lambda x: received.append(x))
 
-        model.fire_event('button_click', 'click')
-        model.fire_event('button_click', 'click')  # Not filtered!
-        model.fire_event('button_click', 'click')
+        model.emit('button_click', 'click')
+        model.emit('button_click', 'click')  # Not filtered!
+        model.emit('button_click', 'click')
 
         assert received == ['click', 'click', 'click']
 
-    def test_fire_event_raises_for_value_mode(self):
-        """Test fire_event() raises ValueError for mode=value items."""
+    def test_emit_raises_for_value_mode(self):
+        """Test emit() raises ValueError for mode=value items."""
         config = {
             'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
         }
         model = Model.from_dict(config)
 
-        with pytest.raises(ValueError, match="mode=value.*Use set_value"):
-            model.fire_event('cpu', 45.2)
+        with pytest.raises(ValueError, match="mode=value.*Use mutable"):
+            model.emit('cpu', 45.2)
 
-    def test_mixed_entrypoints(self):
-        """Test using both entrypoints in the same model."""
+    def test_mixed_mutations(self):
+        """Test using both mutable() and emit() in the same model."""
         config = {
             'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0},
             'button': {'mode': 'event'}
@@ -509,11 +546,37 @@ class TestModelEntrypoints:
         model.get('cpu').subscribe(lambda x: cpu_values.append(x))
         model.get('button').subscribe(lambda x: button_clicks.append(x))
 
-        model.set_value('cpu', 45.2)
-        model.fire_event('button', 'click')
-        model.set_value('cpu', 45.2)      # Filtered
-        model.fire_event('button', 'click') # Not filtered
-        model.set_value('cpu', 67.8)
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+        model.emit('button', 'click')
+        with model.mutable() as m:
+            m['cpu'] = 45.2      # Filtered
+        model.emit('button', 'click')  # Not filtered
+        with model.mutable() as m:
+            m['cpu'] = 67.8
 
         assert cpu_values == [45.2, 67.8]
         assert button_clicks == ['click', 'click']
+
+    def test_atomic_state_mutation(self):
+        """Test that mutable() applies all changes atomically."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0},
+            'memory': {'type': 'number', 'mode': 'value', 'default': 0.0},
+        }
+        model = Model.from_dict(config)
+
+        cpu_values = []
+        memory_values = []
+
+        model.get('cpu').subscribe(lambda x: cpu_values.append(x))
+        model.get('memory').subscribe(lambda x: memory_values.append(x))
+
+        # All changes in one atomic operation
+        with model.mutable() as m:
+            m['cpu'] = 45.2
+            m['memory'] = 1024.0
+
+        # Both should have received exactly one update
+        assert cpu_values == [45.2]
+        assert memory_values == [1024.0]
