@@ -281,6 +281,111 @@ class TestObservableSettings:
         assert log.settings.prefix == "MyPrefix"
 
 
+class TestModelModes:
+    """Test Model mode=value vs mode=event behavior."""
+
+    def test_mode_value_filters_changes(self):
+        """Test mode=value items are automatically change-filtered."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        model.get('cpu').subscribe(lambda x: received.append(x))
+
+        model.set('cpu', 0.0)   # Same as default, filtered
+        model.set('cpu', 45.2)  # Changed, emitted
+        model.set('cpu', 45.2)  # Duplicate, filtered
+        model.set('cpu', 67.8)  # Changed, emitted
+
+        assert received == [45.2, 67.8]
+
+    def test_mode_event_forwards_all(self):
+        """Test mode=event items forward all events."""
+        config = {
+            'button_click': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        model.get('button_click').subscribe(lambda x: received.append(x))
+
+        model.set('button_click', 'click')
+        model.set('button_click', 'click')  # Not filtered!
+        model.set('button_click', 'click')  # Not filtered!
+
+        assert received == ['click', 'click', 'click']
+
+    def test_get_value_for_value_mode(self):
+        """Test get_value() returns current value for mode=value items."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
+        }
+        model = Model.from_dict(config)
+
+        # Subscribe to trigger updates
+        model.get('cpu').subscribe(lambda x: None)
+
+        assert model.get_value('cpu') == 0.0
+
+        model.set('cpu', 45.2)
+        assert model.get_value('cpu') == 45.2
+
+        model.set('cpu', 67.8)
+        assert model.get_value('cpu') == 67.8
+
+    def test_get_value_raises_for_event_mode(self):
+        """Test get_value() raises for mode=event items."""
+        config = {
+            'button_click': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        with pytest.raises(ValueError, match="mode=event"):
+            model.get_value('button_click')
+
+    def test_mode_defaults_to_value(self):
+        """Test that mode defaults to 'value' when not specified."""
+        config = {
+            'cpu': {'type': 'number', 'default': 0.0}
+            # mode not specified, should default to 'value'
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        model.get('cpu').subscribe(lambda x: received.append(x))
+
+        model.set('cpu', 0.0)   # Filtered (same as default)
+        model.set('cpu', 45.2)  # Emitted
+        model.set('cpu', 45.2)  # Filtered
+
+        assert received == [45.2]
+
+    def test_mixed_modes(self):
+        """Test model with both value and event mode items."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0},
+            'button': {'mode': 'event'}
+        }
+        model = Model.from_dict(config)
+
+        cpu_values = []
+        button_clicks = []
+
+        model.get('cpu').subscribe(lambda x: cpu_values.append(x))
+        model.get('button').subscribe(lambda x: button_clicks.append(x))
+
+        model.set('cpu', 45.2)
+        model.set('button', 'click')
+        model.set('cpu', 45.2)      # Filtered
+        model.set('button', 'click') # Not filtered
+        model.set('cpu', 67.8)
+
+        assert cpu_values == [45.2, 67.8]
+        assert button_clicks == ['click', 'click']
+
+
 class TestYAMLIntegration:
     """Test YAML config integration."""
 
@@ -288,35 +393,48 @@ class TestYAMLIntegration:
         """Test model with simple YAML-style config."""
         # Simulating what would come from YAML
         config = {
-            'cpu': {'type': 'number'},
-            'memory': {'type': 'number'},
-            'status': {'type': 'string'},
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0},
+            'memory': {'type': 'number', 'mode': 'value', 'default': 0.0},
+            'status': {'type': 'string', 'mode': 'value'},
         }
 
         model = Model.from_dict(config)
 
-        # Set up observable chains for each key
+        # Set up subscriptions (no need for manual Changed - it's automatic!)
         cpu_values = []
         memory_values = []
         status_values = []
 
-        model.get('cpu').pipe(Changed(initial=0.0)).subscribe(
-            lambda x: cpu_values.append(x)
-        )
-        model.get('memory').pipe(Changed(initial=0.0)).subscribe(
-            lambda x: memory_values.append(x)
-        )
-        model.get('status').subscribe(
-            lambda x: status_values.append(x)
-        )
+        model.get('cpu').subscribe(lambda x: cpu_values.append(x))
+        model.get('memory').subscribe(lambda x: memory_values.append(x))
+        model.get('status').subscribe(lambda x: status_values.append(x))
 
         # Emit values
         model.set('cpu', 45.2)
         model.set('memory', 1024.0)
         model.set('status', 'running')
-        model.set('cpu', 45.2)  # Filtered by Changed
+        model.set('cpu', 45.2)  # Automatically filtered
         model.set('cpu', 67.8)
 
         assert cpu_values == [45.2, 67.8]
         assert memory_values == [1024.0]
         assert status_values == ['running']
+
+    def test_can_still_chain_operators(self):
+        """Test that we can still layer additional operators on top."""
+        config = {
+            'cpu': {'type': 'number', 'mode': 'value', 'default': 0.0}
+        }
+        model = Model.from_dict(config)
+
+        received = []
+        # Already change-filtered, add Log on top
+        model.get('cpu').pipe(Log(prefix="CPU")).subscribe(
+            lambda x: received.append(x)
+        )
+
+        model.set('cpu', 45.2)
+        model.set('cpu', 45.2)  # Filtered
+        model.set('cpu', 67.8)
+
+        assert received == [45.2, 67.8]

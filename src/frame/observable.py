@@ -218,31 +218,43 @@ class Model:
     """
     Container for named observables built from YAML config.
 
-    Provides key-based access to typed observables.
+    Model items have two modes:
+    - value: Stores state, only emits on change (uses Changed operator internally)
+    - event: No storage, emits every time
 
     Example config:
         model:
-          cpu: {type: number}
-          status: {type: string}
+          cpu:
+            mode: value      # or omit (defaults to value)
+            type: number     # or omit (defaults to string)
+            default: 0       # initial value for Changed operator
+          button_click:
+            mode: event
+            type: string
 
     Usage:
-        model = Model.from_yaml(config)
-        model.get('cpu').pipe(Changed(initial=0)).subscribe(callback)
+        model = Model.from_dict(config)
+        model.get('cpu').subscribe(callback)  # Already change-filtered
         model.set('cpu', 45.2)
+        model.get_value('cpu')  # Get current value (only for mode=value)
     """
 
     def __init__(self):
-        self._observables: Dict[str, Observable] = {}
+        self._raw_observables: Dict[str, Observable] = {}  # For emitting
+        self._observables: Dict[str, Observable] = {}      # For subscribing (may be wrapped)
         self._types: Dict[str, type] = {}
+        self._modes: Dict[str, str] = {}
+        self._current_values: Dict[str, Any] = {}  # For mode=value items
 
-    def define(self, key: str, value_type: str, **kwargs) -> None:
+    def define(self, key: str, value_type: str = 'string', mode: str = 'value', default: Any = None) -> None:
         """
-        Define a model key with a type.
+        Define a model key.
 
         Args:
             key: Name of the model key
-            value_type: Python type name ('string', 'number', etc.)
-            **kwargs: Additional configuration
+            value_type: Python type name ('string', 'number', 'int', 'bool')
+            mode: 'value' (stateful, change-filtered) or 'event' (stateless)
+            default: Default/initial value for mode=value items
         """
         # Map type string to Python type
         type_map = {
@@ -254,17 +266,40 @@ class Model:
 
         py_type = type_map.get(value_type, str)
         self._types[key] = py_type
-        self._observables[key] = Observable()
+        self._modes[key] = mode
+
+        # Create base observable (for emitting)
+        raw_obs = Observable[py_type]()
+        self._raw_observables[key] = raw_obs
+
+        # For value mode, wrap with Changed operator and track current value
+        if mode == 'value':
+            self._current_values[key] = default
+            # Create a wrapped observable that applies Changed internally
+            wrapped_obs = raw_obs.pipe(Changed(initial=default))
+
+            # Also subscribe to wrapped observable to track current value
+            def update_current_value(value: Any) -> None:
+                self._current_values[key] = value
+            wrapped_obs.subscribe(update_current_value)
+
+            self._observables[key] = wrapped_obs
+        else:
+            # Event mode - no wrapping
+            self._observables[key] = raw_obs
 
     def get(self, key: str) -> Observable:
         """
         Get the Observable for a model key.
 
+        For mode=value items, the observable is already change-filtered.
+        For mode=event items, the observable emits all events.
+
         Args:
             key: Model key name
 
         Returns:
-            Observable for that key
+            Observable for that key (pre-configured based on mode)
 
         Raises:
             KeyError: If key not defined
@@ -273,9 +308,34 @@ class Model:
             raise KeyError(f"Model key '{key}' not defined")
         return self._observables[key]
 
+    def get_value(self, key: str) -> Any:
+        """
+        Get the current value of a mode=value model key.
+
+        Args:
+            key: Model key name
+
+        Returns:
+            Current value
+
+        Raises:
+            KeyError: If key not defined
+            ValueError: If key is mode=event (events have no current value)
+        """
+        if key not in self._modes:
+            raise KeyError(f"Model key '{key}' not defined")
+
+        if self._modes[key] != 'value':
+            raise ValueError(f"Cannot get_value for mode=event key '{key}'")
+
+        return self._current_values.get(key)
+
     def set(self, key: str, value: Any) -> None:
         """
         Set a value for a model key (emits to its Observable).
+
+        For mode=value items, only emits if value changed (handled by Changed operator).
+        For mode=event items, always emits.
 
         Args:
             key: Model key name
@@ -284,7 +344,7 @@ class Model:
         Raises:
             KeyError: If key not defined
         """
-        if key not in self._observables:
+        if key not in self._raw_observables:
             raise KeyError(f"Model key '{key}' not defined")
 
         # Type coercion
@@ -294,7 +354,8 @@ class Model:
         except (ValueError, TypeError):
             typed_value = value  # Pass through if coercion fails
 
-        self._observables[key].emit(typed_value)
+        # Emit to the raw observable (Changed filter applies automatically for value mode)
+        self._raw_observables[key].emit(typed_value)
 
     def keys(self) -> List[str]:
         """Get all defined model keys."""
@@ -305,19 +366,40 @@ class Model:
         """
         Create Model from dictionary config.
 
+        Config format:
+            {
+                'cpu': {
+                    'type': 'number',     # 'string', 'number', 'int', 'bool'
+                    'mode': 'value',      # 'value' or 'event' (default: 'value')
+                    'default': 0          # initial value for mode=value
+                },
+                'button_click': {
+                    'mode': 'event'       # type defaults to 'string'
+                }
+            }
+
         Args:
-            config: Dict mapping keys to type info
-                   e.g. {'cpu': {'type': 'number'}, 'status': {'type': 'string'}}
+            config: Dict mapping keys to configuration
 
         Returns:
             Configured Model instance
+
+        Example:
+            config = {
+                'cpu': {'type': 'number', 'mode': 'value', 'default': 0},
+                'status': {'type': 'string', 'mode': 'value'},
+                'beep': {'mode': 'event'}
+            }
+            model = Model.from_dict(config)
         """
         model = cls()
         for key, spec in config.items():
             if isinstance(spec, dict):
                 value_type = spec.get('type', 'string')
-                model.define(key, value_type)
+                mode = spec.get('mode', 'value')
+                default = spec.get('default', None)
+                model.define(key, value_type=value_type, mode=mode, default=default)
             else:
-                # Simple format: key: type
-                model.define(key, spec)
+                # Simple format: just the type as a string
+                model.define(key, value_type=spec)
         return model
