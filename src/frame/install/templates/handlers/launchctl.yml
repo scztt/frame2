@@ -1,20 +1,61 @@
 ---
 # Handler for launchctl type
-# Manages user launchd services with simplified plist generation
+# Manages launchd services — either from existing plist files (src) or generates them (program)
+#
+# Copy existing plist:
+#   src: /path/to/com.example.service.plist
+#   system: true        # /Library/LaunchDaemons (sudo), default false = ~/Library/LaunchAgents
+#
+# Generate plist:
+#   label: com.example.service
+#   program: /usr/local/bin/myapp
+#   args: ["--port", "8080"]
+#   working_directory: /path/to/dir
+#   stdout_path: /tmp/myapp.stdout.log
+#   stderr_path: /tmp/myapp.stderr.log
+#   run_at_load: true              # default true
+#   keep_alive: true               # default true
+#   started: true                  # default true — start service after loading
+#   loaded: true                   # default true — load plist into launchd
+#   process_type: Interactive      # optional — Interactive, Background, etc.
+#   start_interval: 30             # optional — run every N seconds
+#   start_calendar_interval:       # optional — cron-like schedule
+#     Hour: 4
+#     Minute: 0
+#   environment:                   # optional — env vars
+#     KEY: value
 
-- name: "Manage launchd service: {{ step.name }}"
+- name: "Manage launchd service: {{ step.label | default(step.src | default('') | basename | regex_replace('\\.plist$', '')) }}"
   block:
-    - name: Set LaunchAgents directory
+    - name: Resolve service name and paths
       set_fact:
-        launch_agents_dir: "{{ ansible_env.HOME }}/Library/LaunchAgents"
-        plist_path: "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ step.name }}.plist"
+        service_name: "{{ step.label | default(step.src | basename | regex_replace('\\.plist$', '')) }}"
+        is_system: "{{ step.system | default(false) | bool }}"
 
-    - name: Ensure LaunchAgents directory exists
+    - name: Set plist destination
+      set_fact:
+        plist_dir: "{{ '/Library/LaunchDaemons' if is_system else ansible_env.HOME + '/Library/LaunchAgents' }}"
+        plist_path: "{{ '/Library/LaunchDaemons/' + service_name + '.plist' if is_system else ansible_env.HOME + '/Library/LaunchAgents/' + service_name + '.plist' }}"
+
+    - name: Ensure service directory exists
       file:
-        path: "{{ launch_agents_dir }}"
+        path: "{{ plist_dir }}"
         state: directory
         mode: '0755'
+      become: "{{ is_system }}"
 
+    # --- Copy existing plist file ---
+    - name: Copy existing plist file
+      copy:
+        src: "{{ step.src }}"
+        dest: "{{ plist_path }}"
+        mode: '0644'
+        owner: "{{ 'root' if is_system else omit }}"
+        group: "{{ 'wheel' if is_system else omit }}"
+      become: "{{ is_system }}"
+      when: step.src is defined
+
+    # --- Generate plist from parameters ---
     - name: Generate launchd plist from template
       copy:
         dest: "{{ plist_path }}"
@@ -24,7 +65,7 @@
           <plist version="1.0">
           <dict>
             <key>Label</key>
-            <string>{{ step.name }}</string>
+            <string>{{ service_name }}</string>
             <key>Program</key>
             <string>{{ step.program }}</string>
             {% if step.args is defined %}
@@ -52,6 +93,23 @@
             <{{ step.run_at_load | default(true) | string | lower }}/>
             <key>KeepAlive</key>
             <{{ step.keep_alive | default(true) | string | lower }}/>
+            {% if step.process_type is defined %}
+            <key>ProcessType</key>
+            <string>{{ step.process_type }}</string>
+            {% endif %}
+            {% if step.start_interval is defined %}
+            <key>StartInterval</key>
+            <integer>{{ step.start_interval }}</integer>
+            {% endif %}
+            {% if step.start_calendar_interval is defined %}
+            <key>StartCalendarInterval</key>
+            <dict>
+              {% for key, value in step.start_calendar_interval.items() %}
+              <key>{{ key }}</key>
+              <integer>{{ value }}</integer>
+              {% endfor %}
+            </dict>
+            {% endif %}
             {% if step.environment is defined %}
             <key>EnvironmentVariables</key>
             <dict>
@@ -64,20 +122,25 @@
           </dict>
           </plist>
         mode: '0644'
+      when: step.program is defined
 
-    - name: Unload service if already loaded (for updates)
+    # --- Load/unload service ---
+    - name: Unload service (for clean reload)
       command: "launchctl unload {{ plist_path }}"
+      become: "{{ is_system }}"
       failed_when: false
       when: step.loaded | default(true)
 
     - name: Load launchd service
       command: "launchctl load {{ plist_path }}"
+      become: "{{ is_system }}"
       when: step.loaded | default(true)
 
     - name: Start launchd service
-      command: "launchctl start {{ step.name }}"
+      command: "launchctl start {{ service_name }}"
+      become: "{{ is_system }}"
       when: step.started | default(true) and step.loaded | default(true)
 
     - name: Report service status
       debug:
-        msg: "Service {{ step.name }} configured (loaded={{ step.loaded | default(true) }}, started={{ step.started | default(true) }})"
+        msg: "Service {{ service_name }} configured (loaded={{ step.loaded | default(true) }}, started={{ step.started | default(true) }}, system={{ is_system }})"

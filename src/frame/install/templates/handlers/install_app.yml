@@ -28,59 +28,25 @@
       set_fact:
         needs_sudo: "{{ target_location.startswith('/Applications') or target_location.startswith('/Library') or target_location.startswith('/usr') or target_location.startswith('/opt') }}"
 
-    - name: Ensure target location exists (without sudo)
+    - name: Ensure target location exists
       file:
         path: "{{ target_location }}"
         state: directory
         mode: '0755'
-      when: not needs_sudo
+      become: "{{ needs_sudo }}"
 
-    - name: Ensure target location exists (with sudo)
-      file:
-        path: "{{ target_location }}"
-        state: directory
-        mode: '0755'
-      become: yes
-      when: needs_sudo
-
-    - name: Remove existing app if present (without sudo)
-      file:
-        path: "{{ target_location }}/{{ app_name }}"
-        state: absent
-      when: not needs_sudo
-
-    - name: Remove existing app if present (with sudo)
-      file:
-        path: "{{ target_location }}/{{ app_name }}"
-        state: absent
-      become: yes
-      when: needs_sudo
-
-    - name: Copy app bundle to target location (without sudo)
-      copy:
+    - name: Sync app bundle to target location
+      ansible.posix.synchronize:
         src: "{{ source_path }}"
-        dest: "{{ target_location }}"
-        mode: preserve
-      when: not needs_sudo
+        dest: "{{ target_location }}/{{ app_name }}"
+        delete: yes
+      become: "{{ needs_sudo }}"
 
-    - name: Copy app bundle to target location (with sudo)
-      copy:
-        src: "{{ source_path }}"
-        dest: "{{ target_location }}"
-        mode: preserve
-      become: yes
-      when: needs_sudo
-
-    - name: Remove quarantine attribute (macOS, without sudo)
+    - name: Remove quarantine attribute
       command: "xattr -d -r com.apple.quarantine {{ target_location }}/{{ app_name }}"
+      become: "{{ needs_sudo }}"
       failed_when: false
-      when: ansible_os_family == "Darwin" and not needs_sudo
-
-    - name: Remove quarantine attribute (macOS, with sudo)
-      command: "xattr -d -r com.apple.quarantine {{ target_location }}/{{ app_name }}"
-      become: yes
-      failed_when: false
-      when: ansible_os_family == "Darwin" and needs_sudo
+      when: ansible_os_family == "Darwin"
 
     - name: Report installation
       debug:

@@ -29,15 +29,22 @@
         mode: '0755'
       when: step.create_dirs | default(true)
 
-    - name: Copy file or directory
-      copy:
+    - name: Sync file or directory
+      ansible.posix.synchronize:
         src: "{{ step.src }}"
         dest: "{{ step.dest }}"
+        delete: yes
+      become: "{{ step.sudo | default(false) }}"
+
+    - name: Set permissions
+      file:
+        path: "{{ step.dest }}"
         mode: "{{ resolved_mode }}"
         owner: "{{ step.owner | default(omit) }}"
         group: "{{ step.group | default(omit) }}"
-        force: "{{ step.force | default(true) }}"
+        recurse: "{{ step.recursive_mode | default(false) }}"
       become: "{{ step.sudo | default(false) }}"
+      when: resolved_mode != 'preserve' and not ansible_check_mode
 
     - name: Remove quarantine attribute (macOS)
       command: "xattr -d -r com.apple.quarantine {{ step.dest }}"

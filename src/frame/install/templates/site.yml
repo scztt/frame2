@@ -13,9 +13,12 @@
       tags: [always]
 
     - name: Execute installation steps
-      include_tasks: "types/{{ item.type }}.yml"
+      include_tasks: step_wrapper.yml
       loop: "{{ plan.steps }}"
+      loop_control:
+        label: "{{ item.name | default(item.type) }}"
       vars:
         step: "{{ item }}"
         config: "{{ plan.config | default({}) }}"
+      when: item.when | default(true)
       tags: [always]

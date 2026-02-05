@@ -3,6 +3,8 @@
 # Installs packages via Homebrew package manager
 
 - name: "Install Homebrew packages"
+  become: "{{ ansible_user_id == 'root' }}"
+  become_user: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
   block:
     - name: Install packages
       community.general.homebrew:
