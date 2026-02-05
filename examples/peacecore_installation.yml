@@ -3,21 +3,25 @@
 
 config:
   peacecore_root: /Volumes/PEACECORE/Installation
+  resources_dir: "{{ config.peacecore_root }}/_resources"
 
 steps:
   # ============================================================================
   # System Configuration
   # ============================================================================
 
-  # Enable screen sharing (macOS defaults)
+  # Enable screen sharing (via launchctl - SIP protects the plist from direct modification)
   - name: Enable screen sharing
-    type: defaults
-    items:
-      - domain: /System/Library/LaunchDaemons/com.apple.screensharing
-        key: Disabled
-        type: bool
-        value: false
-        state: present
+    type: command
+    args:
+      [
+        "launchctl",
+        "load",
+        "-w",
+        "/System/Library/LaunchDaemons/com.apple.screensharing.plist",
+      ]
+    sudo: true
+    ignore_errors: true # May already be loaded
 
   # Enable remote login (SSH)
   - name: Enable remote login (SSH)
@@ -50,21 +54,16 @@ steps:
       - "{{ config.peacecore_root }}/CORE/vscode-supercollider-0.0.3.vsix"
     ignore_errors: true
 
-  # Configure VSCode settings for SuperCollider
+  # Configure VSCode settings for SuperCollider (uses jq for jsonc compatibility)
   - name: Configure VSCode SuperCollider formatter
     type: command
     args: |
       VSCODE_SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
       mkdir -p "$(dirname "$VSCODE_SETTINGS")"
       if [ ! -f "$VSCODE_SETTINGS" ]; then echo '{}' > "$VSCODE_SETTINGS"; fi
-      python3 -c "
-      import json
-      with open('$VSCODE_SETTINGS', 'r') as f:
-          settings = json.load(f)
-      settings['supercollider.sclang.formatterCmd'] = '/Applications/sclang-format'
-      with open('$VSCODE_SETTINGS', 'w') as f:
-          json.dump(settings, f, indent=2)
-      "
+      # Use jq to merge the setting (handles comments/trailing commas gracefully)
+      jq '. + {"supercollider.sclang.formatterCmd": "/Applications/sclang-format"}' "$VSCODE_SETTINGS" > "$VSCODE_SETTINGS.tmp" && mv "$VSCODE_SETTINGS.tmp" "$VSCODE_SETTINGS"
+    ignore_errors: true
 
   # Install sclang-format binary
   - name: Install sclang-format
@@ -78,13 +77,18 @@ steps:
 
   - name: Install SuperCollider
     type: install_app
-    path: "{{ config.peacecore_root }}/_setup/SuperCollider/SuperCollider.app"
+    # path: "{{ config.peacecore_root }}/_setup/SuperCollider/SuperCollider.app"
+    remote:
+      url: https://github.com/supercollider/supercollider/releases/download/Version-3.14.1/SuperCollider-3.14.1-macOS-universal.dmg
+      sha256: ed264b32752d27fc86e506dd0a7eb36de7c19ebce73c3fdf2ed5514f8c73f02e
 
-  # Copy sc3_plugins to SuperCollider Extensions
+  # Download and extract SC3 plugins to SuperCollider Extensions
   - name: Install SC3 plugins
-    type: copy
-    src: "{{ config.peacecore_root }}/_setup/SuperCollider/SC3plugins"
-    dest: ~/Library/Application Support/SuperCollider/Extensions/SC3plugins
+    type: download
+    url: https://github.com/supercollider/sc3-plugins/releases/download/Version-3.13.0/sc3-plugins-3.13.0-macOS.zip
+    dest: "{{ config.resources_dir }}/sc3-plugins-3.13.0-macOS.zip"
+    unarchive: true
+    unarchive_dest: ~/Library/Application Support/SuperCollider/Extensions2
     remove_quarantine: true
 
   # TODO: Launch SuperCollider once and allow permissions (GUI - manual step)
