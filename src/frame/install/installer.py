@@ -8,12 +8,10 @@ import tempfile
 from typing import List, Dict, Any
 
 from .generators import (
-    get_static_site_yml,
-    generate_plan_yml,
+    generate_site_yml,
     generate_ansible_cfg,
     generate_inventory,
     load_handler,
-    load_template,
     get_handler_dependencies,
 )
 
@@ -173,25 +171,27 @@ def _run_check(ansible_dir: Path, cmdline: str, state_entries: List[Dict[str, An
     """Run ansible in check mode and display a per-step status summary."""
     current_step = [-1]
     step_results: Dict[int, List[Dict[str, str]]] = {i: [] for i in range(len(state_entries))}
-    skip_actions = {'set_fact', 'debug', 'include_tasks', 'meta', 'include_vars'}
+    skip_actions = {'set_fact', 'debug', 'include_tasks', 'meta', 'include_vars', 'setup'}
+    step_names = {_step_label(e) for e in state_entries}
 
     def on_event(event):
         event_type = event.get('event', '')
         data = event.get('event_data', {})
 
-        # Collect task results
-        if event_type in ('runner_on_ok', 'runner_on_failed', 'runner_on_skipped',
-                          'runner_item_on_ok', 'runner_item_on_failed', 'runner_item_on_skipped'):
+        # Detect step boundaries via playbook_on_task_start for include_tasks
+        if event_type == 'playbook_on_task_start':
             task_name = data.get('task', '')
-
-            # Detect step marker — increment step counter and skip recording
-            if task_name.startswith('__step:'):
+            if task_name in step_names:
                 current_step[0] += 1
                 if current_step[0] < len(state_entries):
                     label = _step_label(state_entries[current_step[0]])
                     typer.echo(f"  Checking: {label}")
-                return
+            return
 
+        # Collect task results
+        if event_type in ('runner_on_ok', 'runner_on_failed', 'runner_on_skipped',
+                          'runner_item_on_ok', 'runner_item_on_failed', 'runner_item_on_skipped'):
+            task_name = data.get('task', '')
             idx = current_step[0]
             if idx < 0 or idx >= len(state_entries):
                 return
@@ -444,12 +444,8 @@ def install(
 
         typer.echo("⚙️  Generating ansible playbooks...")
 
-        # Generate static site.yml and step wrapper
-        (ansible_dir / "site.yml").write_text(get_static_site_yml())
-        (ansible_dir / "step_wrapper.yml").write_text(load_template("step_wrapper.yml"))
-
-        # Generate plan.yml with actual steps and config
-        (ansible_dir / "plan.yml").write_text(generate_plan_yml(state_entries, config))
+        # Generate site.yml with one include_tasks per step
+        (ansible_dir / "site.yml").write_text(generate_site_yml(state_entries, config))
 
         # Generate config files
         (ansible_dir / "ansible.cfg").write_text(generate_ansible_cfg())

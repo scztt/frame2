@@ -1,6 +1,0 @@
-- name: "__step: {{ step.name | default(step.type) }}"
-  debug:
-    msg: ""
-
-- name: "Run {{ step.type }} handler"
-  include_tasks: "types/{{ step.type }}.yml"

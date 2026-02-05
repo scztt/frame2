@@ -85,83 +85,51 @@ def generate_inventory() -> str:
     return load_template("inventory.ini")
 
 
-# Handler generator functions - now just load from files
-def generate_install_app_handler() -> str:
-    """Load the install_app handler template."""
-    return load_handler("install_app")
+def generate_site_yml(steps: List[Dict[str, Any]], config: Optional[Dict[str, Any]] = None) -> str:
+    """Generate site.yml with one include_tasks per step instead of a loop.
 
+    Each step becomes its own named include_tasks entry, so Ansible fires
+    playbook_on_task_start for each step — giving natural step boundaries
+    without needing markers or wrappers.
+    """
+    tasks: List[Dict[str, Any]] = [
+        {
+            "name": "Gather facts",
+            "setup": {},
+            "tags": ["always"],
+        }
+    ]
 
-def generate_defaults_handler() -> str:
-    """Load the defaults handler template."""
-    return load_handler("defaults")
+    effective_config = config or {}
 
+    for step in steps:
+        step_type = step["type"]
+        label = step.get("name", step_type)
+        task: Dict[str, Any] = {
+            "name": label,
+            "include_tasks": f"types/{step_type}.yml",
+            "vars": {
+                "step": step,
+                "config": effective_config,
+            },
+            "tags": ["always"],
+        }
+        when = step.get("when")
+        if when is not None and when is not True:
+            task["when"] = when
+        tasks.append(task)
 
-def generate_homebrew_handler() -> str:
-    """Load the homebrew handler template."""
-    return load_handler("homebrew")
+    play = [
+        {
+            "name": "Frame Installation",
+            "hosts": "localhost",
+            "connection": "local",
+            "gather_facts": False,
+            "tasks": tasks,
+        }
+    ]
 
-
-def generate_launchctl_handler() -> str:
-    """Load the launchctl handler template."""
-    return load_handler("launchctl")
-
-
-def generate_copy_handler() -> str:
-    """Load the copy handler template."""
-    return load_handler("copy")
-
-
-def generate_command_handler() -> str:
-    """Load the command handler template."""
-    return load_handler("command")
-
-
-def generate_install_pkg_handler() -> str:
-    """Load the install_pkg handler template."""
-    return load_handler("install_pkg")
-
-
-def generate_systemsetup_handler() -> str:
-    """Load the systemsetup handler template."""
-    return load_handler("systemsetup")
-
-
-def generate_npx_handler() -> str:
-    """Load the npx handler template."""
-    return load_handler("npx")
-
-
-def generate_audio_handler() -> str:
-    """Load the audio handler template."""
-    return load_handler("audio")
-
-
-def generate_download_handler() -> str:
-    """Load the download handler template."""
-    return load_handler("download")
-
-
-# Registry of handler generators by type
-HANDLER_GENERATORS = {
-    "install_app": generate_install_app_handler,
-    "defaults": generate_defaults_handler,
-    "homebrew": generate_homebrew_handler,
-    "launchctl": generate_launchctl_handler,
-    "copy": generate_copy_handler,
-    "command": generate_command_handler,
-    "install_pkg": generate_install_pkg_handler,
-    "systemsetup": generate_systemsetup_handler,
-    "npx": generate_npx_handler,
-    "audio": generate_audio_handler,
-    "download": generate_download_handler,
-}
-
-
-def get_handler_generator(handler_type: str):
-    """Get the handler generator function for a given type."""
-    if handler_type not in HANDLER_GENERATORS:
-        raise ValueError(f"Unknown handler type: {handler_type}")
-    return HANDLER_GENERATORS[handler_type]
+    return yaml.dump(play, default_flow_style=False, sort_keys=False)
 
 
 def list_available_handlers() -> List[str]:
@@ -172,16 +140,3 @@ def list_available_handlers() -> List[str]:
         path.stem for path in HANDLERS_DIR.glob("*.yml")
         if path.is_file()
     ]
-
-
-def register_handler_from_file(handler_name: str) -> None:
-    """
-    Dynamically register a handler from a file in the handlers directory.
-
-    This allows third parties to add new handler types by simply
-    adding a .yml file to the handlers directory.
-    """
-    def loader():
-        return load_handler(handler_name)
-
-    HANDLER_GENERATORS[handler_name] = loader
