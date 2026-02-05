@@ -123,6 +123,20 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
             await run_command(["screencapture", ref.path], sudo=self.sudo)
             return ref
 
+
+class FileGetter(ValueBase, name="file"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+        self.path = settings["path"]
+        self.parser, _ = make_parser(settings.get("parser", "string"))
+
+    async def get(self):
+        with open(self.path, "r") as f:
+            content = f.read().strip()
+        return self.parser(content)
+
+
 class Tail(ValueBase, name="tail"):
     def __init__(self, settings):
         settings["renderer"] = settings.get("renderer", "log")

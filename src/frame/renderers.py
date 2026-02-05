@@ -368,3 +368,121 @@ class SliderRenderer(ActionRenderer, name="slider"):
 
     def render_data(self, data: "ActionBase") -> str:
         return render_number_control(self.display_name, self.min, self.max, self.step, self.default, self.units, data.url)
+
+
+# === Data Transformation Renderers (for Effects) ===
+
+class FormatRenderer(RendererBase, name="format"):
+    """
+    Renderer that uses Python's .format() method to transform input.
+
+    Settings:
+        string: Format string with {} placeholders
+
+    Example:
+        FormatRenderer({"string": "Value: {}"})
+        renders 42 -> "Value: 42"
+    """
+
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.format_string = settings.get("string", "{}")
+
+    def render_data(self, data: Any) -> str:
+        """Format data using Python's .format() method."""
+        if isinstance(data, dict):
+            # For dicts, use **kwargs style formatting
+            return self.format_string.format(**data)
+        elif isinstance(data, (list, tuple)):
+            # For sequences, use positional formatting
+            return self.format_string.format(*data)
+        else:
+            # For single values, use single placeholder
+            return self.format_string.format(data)
+
+    def __call__(self, data: Any) -> str:
+        """Make renderer callable for use in effects."""
+        return self.render_data(data)
+
+
+class ObjectWrapper:
+    """
+    Wraps any object to make its attributes accessible as dict keys.
+
+    This allows objects to be used with ** unpacking in Jinja2 templates.
+
+    Example:
+        obj = SomeObject(x=1, y=2)
+        wrapper = ObjectWrapper(obj)
+        template.render(**wrapper)  # Can access {{ x }} and {{ y }}
+    """
+
+    def __init__(self, obj: Any):
+        self._obj = obj
+
+    def __getitem__(self, key: str) -> Any:
+        """Allow dict-style access to object attributes."""
+        if isinstance(self._obj, dict):
+            return self._obj[key]
+        return getattr(self._obj, key)
+
+    def keys(self):
+        """Return available keys for dict-like iteration."""
+        if isinstance(self._obj, dict):
+            return self._obj.keys()
+        # For objects, return all non-private attributes
+        return [k for k in dir(self._obj) if not k.startswith('_')]
+
+    def items(self):
+        """Return key-value pairs for dict-like iteration."""
+        for key in self.keys():
+            yield key, self[key]
+
+    def values(self):
+        """Return values for dict-like iteration."""
+        for key in self.keys():
+            yield self[key]
+
+
+class TemplateRenderer(RendererBase, name="template"):
+    """
+    Renderer that uses Jinja2 templates to transform input.
+
+    Settings:
+        string: Jinja2 template string
+
+    The input object is wrapped to make its properties accessible as template variables.
+
+    Example:
+        TemplateRenderer({"string": "Value: {{ x }}"})
+        renders {"x": 42} -> "Value: 42"
+        renders obj with obj.x=42 -> "Value: 42"
+    """
+
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        import jinja2
+        template_string = settings.get("string", "{{ value }}")
+        self.template = jinja2.Template(template_string)
+
+    def render_data(self, data: Any) -> str:
+        """Render data using Jinja2 template."""
+        if isinstance(data, dict):
+            # Dicts can be unpacked directly
+            return self.template.render(**data)
+        elif isinstance(data, (str, int, float, bool, type(None))):
+            # Primitive types: provide as 'value' variable
+            return self.template.render(value=data)
+        else:
+            # Wrap other objects to make attributes accessible
+            wrapper = ObjectWrapper(data)
+            try:
+                # Try to unpack as dict
+                return self.template.render(**wrapper)
+            except (AttributeError, TypeError):
+                # Fallback: provide as 'value' variable
+                return self.template.render(value=data)
+
+    def __call__(self, data: Any) -> str:
+        """Make renderer callable for use in effects."""
+        return self.render_data(data)

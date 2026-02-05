@@ -89,6 +89,18 @@ class NumberParser(ParserBase, name="number"):
         raise ValueError(f"Cannot parse as a number: {value}")
 
 
+class NumberParser(ParserBase, name="number"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+
+    def __call__(self, value: str) -> int | float:
+        value = value.strip()
+        try:
+            return int(value)
+        except ValueError:
+            return float(value)
+
+
 class DetectParser(RegexParser, name="detect"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
