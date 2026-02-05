@@ -1,0 +1,165 @@
+# Handler for audio type
+# Configures macOS audio devices using macos-audio-devices (via npx)
+# Idempotent: checks current state before making changes
+dependencies:
+  - npx
+---
+# Ensure macos-audio-devices is installed (reuses npx handler)
+- name: Ensure macos-audio-devices is available
+  include_tasks: types/npx.yml
+  vars:
+    step:
+      package: macos-audio-devices
+      args: list
+      show_output: false
+
+# Use the npx_result from the dependency step as our device list
+- name: Store device list
+  set_fact:
+    device_list: "{{ npx_result }}"
+
+# Set default output device (if specified)
+- name: Get current default output device
+  shell: "npx macos-audio-devices output get 2>/dev/null"
+  register: current_output
+  changed_when: false
+  when: step.output is defined
+
+- name: Resolve output device ID
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ step.output }}' | head -1 | awk '{print $1}'"
+  register: output_device_id
+  changed_when: false
+  when: step.output is defined
+
+- name: Set default output device
+  shell: "npx macos-audio-devices output set {{ output_device_id.stdout }}"
+  when: >
+    step.output is defined and
+    output_device_id.stdout | length > 0 and
+    step.output | lower not in current_output.stdout | lower
+
+# Set default input device (if specified)
+- name: Get current default input device
+  shell: "npx macos-audio-devices input get 2>/dev/null"
+  register: current_input
+  changed_when: false
+  when: step.input is defined
+
+- name: Resolve input device ID
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ step.input }}' | head -1 | awk '{print $1}'"
+  register: input_device_id
+  changed_when: false
+  when: step.input is defined
+
+- name: Set default input device
+  shell: "npx macos-audio-devices input set {{ input_device_id.stdout }}"
+  when: >
+    step.input is defined and
+    input_device_id.stdout | length > 0 and
+    step.input | lower not in current_input.stdout | lower
+
+# Set default system sound device (if specified)
+- name: Get current default system device
+  shell: "npx macos-audio-devices system get 2>/dev/null"
+  register: current_system
+  changed_when: false
+  when: step.system is defined
+
+- name: Resolve system device ID
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ step.system }}' | head -1 | awk '{print $1}'"
+  register: system_device_id
+  changed_when: false
+  when: step.system is defined
+
+- name: Set default system device
+  shell: "npx macos-audio-devices system set {{ system_device_id.stdout }}"
+  when: >
+    step.system is defined and
+    system_device_id.stdout | length > 0 and
+    step.system | lower not in current_system.stdout | lower
+
+# Set volume on devices (if specified)
+- name: Resolve volume device IDs
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ vol_entry.device }}' | head -1 | awk '{print $1}'"
+  register: volume_device_ids
+  changed_when: false
+  loop: "{{ step.volume | default([]) }}"
+  loop_control:
+    loop_var: vol_entry
+    label: "{{ vol_entry.device }}"
+
+- name: Get current volume levels
+  shell: "npx macos-audio-devices volume get {{ vol_entry.stdout }} 2>/dev/null"
+  register: current_volumes
+  changed_when: false
+  loop: "{{ volume_device_ids.results | default([]) }}"
+  loop_control:
+    loop_var: vol_entry
+    label: "{{ vol_entry.vol_entry.device }}"
+  when: step.volume is defined and vol_entry.stdout | length > 0
+
+- name: Set volume levels
+  shell: "npx macos-audio-devices volume set {{ volume_device_ids.results[index].stdout }} {{ vol_entry.level }}"
+  loop: "{{ step.volume | default([]) }}"
+  loop_control:
+    loop_var: vol_entry
+    index_var: index
+    label: "{{ vol_entry.device }} = {{ vol_entry.level }}"
+  when: >
+    volume_device_ids.results[index].stdout | length > 0 and
+    current_volumes.results[index] is defined and
+    (current_volumes.results[index].stdout | float - vol_entry.level | float) | abs > 0.01
+
+# Create aggregate devices (if specified)
+- name: Check if aggregate device exists
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ agg_entry.name }}'"
+  register: aggregate_exists
+  changed_when: false
+  failed_when: false
+  loop: "{{ step.aggregate | default([]) }}"
+  loop_control:
+    loop_var: agg_entry
+    label: "{{ agg_entry.name }}"
+
+- name: Resolve aggregate main device ID
+  shell: "npx macos-audio-devices list 2>/dev/null | grep -i '{{ agg_entry.main }}' | head -1 | awk '{print $1}'"
+  register: aggregate_main_ids
+  changed_when: false
+  loop: "{{ step.aggregate | default([]) }}"
+  loop_control:
+    loop_var: agg_entry
+    label: "{{ agg_entry.name }}"
+  when: aggregate_exists.results[0].rc != 0 or aggregate_exists.results[0].stdout | length == 0
+
+- name: Resolve aggregate member device IDs
+  shell: |
+    {% for dev in agg_entry.devices %}
+    npx macos-audio-devices list 2>/dev/null | grep -i '{{ dev }}' | head -1 | awk '{print $1}'
+    {% endfor %}
+  register: aggregate_member_ids
+  changed_when: false
+  loop: "{{ step.aggregate | default([]) }}"
+  loop_control:
+    loop_var: agg_entry
+    label: "{{ agg_entry.name }}"
+  when: aggregate_exists.results[0].rc != 0 or aggregate_exists.results[0].stdout | length == 0
+
+- name: Create aggregate devices
+  shell: >
+    npx macos-audio-devices aggregate create
+    '{{ agg_entry.name }}'
+    {{ aggregate_main_ids.results[index].stdout }}
+    {{ aggregate_member_ids.results[index].stdout_lines | join(' ') }}
+    {{ '--multi-output' if agg_entry.multi_output | default(false) else '' }}
+  loop: "{{ step.aggregate | default([]) }}"
+  loop_control:
+    loop_var: agg_entry
+    index_var: index
+    label: "{{ agg_entry.name }}"
+  when: >
+    aggregate_exists.results[index].rc != 0 or
+    aggregate_exists.results[index].stdout | length == 0
+
+- name: Report audio configuration
+  debug:
+    msg: "Audio devices configured"

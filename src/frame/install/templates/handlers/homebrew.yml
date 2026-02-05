@@ -1,0 +1,18 @@
+---
+# Handler for homebrew type
+# Installs packages via Homebrew package manager
+
+- name: "Install Homebrew packages"
+  block:
+    - name: Install packages
+      community.general.homebrew:
+        name: "{{ item }}"
+        state: "{{ step.state | default('present') }}"
+        update_homebrew: "{{ step.update_homebrew | default(false) }}"
+      loop: "{{ step.packages }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Report packages installed
+      debug:
+        msg: "Installed {{ step.packages | length }} Homebrew package(s)"

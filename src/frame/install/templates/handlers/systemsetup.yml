@@ -1,0 +1,28 @@
+---
+# Handler for systemsetup type
+# Manages macOS system settings idempotently
+# Checks current value before setting to avoid unnecessary changes
+
+- name: Get current system settings
+  shell: "systemsetup -get{{ setting.key }} 2>&1 || echo 'unavailable'"
+  become: true
+  register: current_values
+  changed_when: false
+  loop: "{{ step['items'] | dict2items }}"
+  loop_control:
+    loop_var: setting
+    label: "{{ setting.key }}"
+
+- name: Set system settings
+  shell: "echo 'yes' | systemsetup -set{{ setting.key }} '{{ setting.value }}'"
+  become: true
+  when: setting.value | string | lower not in current_values.results[index].stdout | lower
+  loop: "{{ step['items'] | dict2items }}"
+  loop_control:
+    loop_var: setting
+    index_var: index
+    label: "{{ setting.key }} = {{ setting.value }}"
+
+- name: Report completion
+  debug:
+    msg: "Configured {{ step['items'] | length }} system setting(s)"

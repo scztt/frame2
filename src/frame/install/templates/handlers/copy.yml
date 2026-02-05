@@ -1,0 +1,49 @@
+---
+# Handler for copy type
+# Copies files or directories with permissions
+#
+# Mode can be specified as:
+#   mode: "0755"                          # octal string (legacy)
+#   mode:                                 # readable dict
+#     user: rwx
+#     group: rx
+#     everyone: r
+
+- name: "Copy: {{ step.src }} → {{ step.dest }}"
+  block:
+    - name: Resolve file mode
+      set_fact:
+        resolved_mode: >-
+          {% if step.mode is defined and step.mode is mapping -%}
+          u={{ step.mode.user | default('') | replace('null', '') }},g={{ step.mode.group | default('') | replace('null', '') }},o={{ step.mode.everyone | default('') | replace('null', '') }}
+          {%- elif step.mode is defined -%}
+          {{ step.mode }}
+          {%- else -%}
+          preserve
+          {%- endif %}
+
+    - name: Ensure destination directory exists
+      file:
+        path: "{{ step.dest | dirname }}"
+        state: directory
+        mode: '0755'
+      when: step.create_dirs | default(true)
+
+    - name: Copy file or directory
+      copy:
+        src: "{{ step.src }}"
+        dest: "{{ step.dest }}"
+        mode: "{{ resolved_mode }}"
+        owner: "{{ step.owner | default(omit) }}"
+        group: "{{ step.group | default(omit) }}"
+        force: "{{ step.force | default(true) }}"
+      become: "{{ step.sudo | default(false) }}"
+
+    - name: Remove quarantine attribute (macOS)
+      command: "xattr -d -r com.apple.quarantine {{ step.dest }}"
+      failed_when: false
+      when: (ansible_os_family == "Darwin") and (step.remove_quarantine | default(false))
+
+    - name: Report completion
+      debug:
+        msg: "Copied {{ step.src }} to {{ step.dest }}"

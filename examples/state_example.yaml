@@ -1,0 +1,10 @@
+# Example state.yaml for frame install command
+# This demonstrates the install_app type with optional install_location
+
+- type: install_app
+  path: SuperCollider.app
+  install_location: /Applications
+
+- type: install_app
+  path: MyApp.app
+  # install_location defaults to /Applications if not specified

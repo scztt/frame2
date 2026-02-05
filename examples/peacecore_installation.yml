@@ -1,0 +1,162 @@
+# PeaceCore Installation State File
+# Automates setup for PeaceCore art installation
+
+# ============================================================================
+# System Configuration
+# ============================================================================
+
+# Enable screen sharing (macOS defaults)
+- type: defaults
+  items:
+    - domain: /System/Library/LaunchDaemons/com.apple.screensharing
+      key: Disabled
+      type: bool
+      value: false
+      state: present
+
+# Enable remote login (SSH)
+- type: systemsetup
+  items:
+    remotelogin: "on"
+
+# ============================================================================
+# Application Installations
+# ============================================================================
+
+- type: install_app
+  path: /Volumes/PEACECORE/Installation/CORE/WallDesigner.app
+
+# TODO: Open WallDesigner and configure screens (GUI - manual step)
+# - Open DataPath Layout NY new firmware fix - resized.wdl
+# - Send configuration to screens
+
+- type: install_app
+  path: /Volumes/PEACECORE/Installation/CORE/Visual Studio Code.app
+
+# Install VSCode SuperCollider extension
+- type: command
+  description: Install vscode-supercollider extension
+  args:
+    - /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+    - --install-extension
+    - /Volumes/PEACECORE/Installation/CORE/vscode-supercollider-0.0.3.vsix
+  ignore_errors: true
+
+# Configure VSCode settings for SuperCollider
+- type: command
+  description: Configure VSCode SuperCollider formatter
+  args: |
+    VSCODE_SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
+    mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+    if [ ! -f "$VSCODE_SETTINGS" ]; then echo '{}' > "$VSCODE_SETTINGS"; fi
+    python3 -c "
+    import json
+    with open('$VSCODE_SETTINGS', 'r') as f:
+        settings = json.load(f)
+    settings['supercollider.sclang.formatterCmd'] = '/Applications/sclang-format'
+    with open('$VSCODE_SETTINGS', 'w') as f:
+        json.dump(settings, f, indent=2)
+    "
+
+# Install sclang-format binary
+- type: copy
+  src: /Volumes/PEACECORE/Installation/CORE/sclang-format
+  dest: /Applications/sclang-format
+  mode:
+    user: rwx
+    group: rx
+    everyone: rx
+
+- type: install_app
+  path: /Volumes/PEACECORE/Installation/CORE/SuperCollider.app
+
+# Copy sc3_plugins to SuperCollider Extensions
+- type: copy
+  src: /Volumes/PEACECORE/Installation/CORE/sc3_plugins
+  dest: ~/Library/Application Support/SuperCollider/Extensions/SC3plugins
+  remove_quarantine: true
+
+# TODO: Launch SuperCollider once and allow permissions (GUI - manual step)
+
+- type: install_app
+  path: /Volumes/PEACECORE/Installation/CORE/TouchDesigner.app
+
+# TODO: Launch TouchDesigner and register with TD Commercial Key (GUI - manual step)
+
+# Install BlackHole audio driver
+- type: install_pkg
+  path: /Volumes/PEACECORE/Installation/CORE/BlackHole2ch-0.6.0.pkg
+
+# Create Audio MIDI aggregate device (Scarlett + BlackHole)
+- type: audio
+  aggregate:
+    - name: PeaceCore Aggregate
+      main: Scarlett
+      devices:
+        - Scarlett
+        - BlackHole 2ch
+      multi_output: true
+
+- type: install_app
+  path: /Volumes/PEACECORE/Installation/CORE/Google Chrome.app
+
+# TODO: Chrome Remote Desktop - determine if .app or .pkg format
+
+# TODO: Grant Full Disk Access to SuperCollider and TouchDesigner (GUI - manual step)
+
+# ============================================================================
+# Package Manager and Tools
+# ============================================================================
+
+# Install Homebrew (if not already installed)
+- type: command
+  description: Install Homebrew
+  args: |
+    if ! command -v brew &> /dev/null; then
+      /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    else
+      echo "Homebrew already installed"
+    fi
+  ignore_errors: true
+
+- type: homebrew
+  packages:
+    - uv
+
+# ============================================================================
+# Frame Setup
+# ============================================================================
+
+- type: command
+  description: Test frame installation
+  args:
+    - uv
+    - run
+    - frame
+    - --help
+  working_directory: /Volumes/PEACECORE/Installation/frame2
+  show_output: true
+
+# ============================================================================
+# PeaceCore Daemons
+# ============================================================================
+
+- type: command
+  description: Run bootstrap for daemon setup
+  args:
+    - /Volumes/PEACECORE/Installation/CORE/daemons/bootstrap.command
+  working_directory: /Volumes/PEACECORE/Installation/CORE/daemons
+  show_output: true
+
+# ============================================================================
+# Manual Steps
+# ============================================================================
+#
+# TODO: Edit ~/Desktop/SETTINGS_LOCAL.scd
+#   1. Set footagePath to correct footage folder
+#   2. Set touchInChannel to first BlackHole channel index
+#
+# TODO: Start PeaceCore via web interface
+#   1. Open Chrome → http://0.0.0.0:8000
+#   2. Enter password: peacecore1234
+#   3. Stop PeaceCore → Start PeaceCore → wait ~60s

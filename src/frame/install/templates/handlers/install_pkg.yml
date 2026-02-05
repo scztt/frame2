@@ -1,0 +1,24 @@
+---
+# Handler for pkg_install type
+# Installs macOS .pkg files using installer command
+
+- name: "Install package: {{ step.path }}"
+  block:
+    - name: Check if package exists
+      stat:
+        path: "{{ step.path }}"
+      register: pkg_stat
+
+    - name: Fail if package not found
+      fail:
+        msg: "Package not found: {{ step.path }}"
+      when: not pkg_stat.stat.exists
+
+    - name: Install package
+      command: "installer -pkg {{ step.path }} -target {{ step.target | default('/') }}"
+      become: yes
+      register: install_result
+
+    - name: Report installation
+      debug:
+        msg: "Installed package: {{ step.path | basename }}"

@@ -1,0 +1,21 @@
+---
+# Canonical site.yml - loads plan.yml and executes installation steps
+- name: Frame Installation
+  hosts: localhost
+  connection: local
+  gather_facts: yes
+
+  tasks:
+    - name: Load installation plan
+      include_vars:
+        file: plan.yml
+        name: plan
+      tags: [always]
+
+    - name: Execute installation steps
+      include_tasks: "types/{{ item.type }}.yml"
+      loop: "{{ plan.steps }}"
+      vars:
+        step: "{{ item }}"
+        config: "{{ plan.config | default({}) }}"
+      tags: [always]

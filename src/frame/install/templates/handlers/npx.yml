@@ -1,0 +1,16 @@
+---
+# Handler for npx type
+# Runs an npx package, installing it automatically if needed
+
+- name: "Run npx package: {{ step.package }}"
+  shell: "npx {{ step.package }}{{ ' ' + step.args if step.args is defined and step.args is string else '' }}"
+  args:
+    chdir: "{{ step.working_directory | default(omit) }}"
+  environment: "{{ step.environment | default({}) }}"
+  register: npx_result
+  changed_when: false
+
+- name: Report npx output
+  debug:
+    msg: "{{ npx_result.stdout if npx_result.stdout is defined and npx_result.stdout else 'npx completed' }}"
+  when: step.show_output | default(false)

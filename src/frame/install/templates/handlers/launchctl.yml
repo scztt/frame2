@@ -1,0 +1,83 @@
+---
+# Handler for launchctl type
+# Manages user launchd services with simplified plist generation
+
+- name: "Manage launchd service: {{ step.name }}"
+  block:
+    - name: Set LaunchAgents directory
+      set_fact:
+        launch_agents_dir: "{{ ansible_env.HOME }}/Library/LaunchAgents"
+        plist_path: "{{ ansible_env.HOME }}/Library/LaunchAgents/{{ step.name }}.plist"
+
+    - name: Ensure LaunchAgents directory exists
+      file:
+        path: "{{ launch_agents_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Generate launchd plist from template
+      copy:
+        dest: "{{ plist_path }}"
+        content: |
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>Label</key>
+            <string>{{ step.name }}</string>
+            <key>Program</key>
+            <string>{{ step.program }}</string>
+            {% if step.args is defined %}
+            <key>ProgramArguments</key>
+            <array>
+              <string>{{ step.program }}</string>
+              {% for arg in step.args %}
+              <string>{{ arg }}</string>
+              {% endfor %}
+            </array>
+            {% endif %}
+            {% if step.working_directory is defined %}
+            <key>WorkingDirectory</key>
+            <string>{{ step.working_directory }}</string>
+            {% endif %}
+            {% if step.stdout_path is defined %}
+            <key>StandardOutPath</key>
+            <string>{{ step.stdout_path }}</string>
+            {% endif %}
+            {% if step.stderr_path is defined %}
+            <key>StandardErrorPath</key>
+            <string>{{ step.stderr_path }}</string>
+            {% endif %}
+            <key>RunAtLoad</key>
+            <{{ step.run_at_load | default(true) | string | lower }}/>
+            <key>KeepAlive</key>
+            <{{ step.keep_alive | default(true) | string | lower }}/>
+            {% if step.environment is defined %}
+            <key>EnvironmentVariables</key>
+            <dict>
+              {% for key, value in step.environment.items() %}
+              <key>{{ key }}</key>
+              <string>{{ value }}</string>
+              {% endfor %}
+            </dict>
+            {% endif %}
+          </dict>
+          </plist>
+        mode: '0644'
+
+    - name: Unload service if already loaded (for updates)
+      command: "launchctl unload {{ plist_path }}"
+      failed_when: false
+      when: step.loaded | default(true)
+
+    - name: Load launchd service
+      command: "launchctl load {{ plist_path }}"
+      when: step.loaded | default(true)
+
+    - name: Start launchd service
+      command: "launchctl start {{ step.name }}"
+      when: step.started | default(true) and step.loaded | default(true)
+
+    - name: Report service status
+      debug:
+        msg: "Service {{ step.name }} configured (loaded={{ step.loaded | default(true) }}, started={{ step.started | default(true) }})"
