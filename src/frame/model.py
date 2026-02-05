@@ -5,6 +5,7 @@ import json
 from queue import Queue
 from re import sub
 from sys import settrace
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 from frame.actions import ActionBase, make_action
 from frame.parsers import register_parsers
@@ -197,11 +198,14 @@ class Config:
     def get_rendered(self, property_name: str) -> str:
         result = self.get(property_name)
         renderer = self.delegates[property_name].renderer
-        return renderer.render_data(result)
+        if renderer.visible:
+            return renderer.render_data(result)
+        else:
+            return ""
 
     def get_rendered_action(self, action_name: str) -> str:
         action = self.actions[action_name]
-        if action.renderer:
+        if action.renderer and action.renderer.visible:
             return action.renderer.render_data(action)
         else:
             return None
@@ -222,13 +226,14 @@ class Config:
         await self.pull(*self.get_properties())
         for property_name in self.get_properties():
             renderer = self.delegates[property_name].renderer
-            rendered = renderer.render_data(self.state[property_name])
-            id = self.get_property_path(property_name).replace("/", "-")[1:]
+            if renderer.visible:
+                rendered = renderer.render_data(self.state[property_name])
+                id = self.get_property_path(property_name).replace("/", "-")[1:]
 
-            yield f"event:{id}\n"
-            for line in rendered.split("\n"):
-                yield f"data: {line}\n"
-            yield "\n"
+                yield f"event:{id}\n"
+                for line in rendered.split("\n"):
+                    yield f"data: {line}\n"
+                yield "\n"
 
         queue = asyncio.Queue[Any]()
         with ExitStack() as stack:
@@ -237,13 +242,16 @@ class Config:
             while True:
                 property_name, rendered = await queue.get()
                 renderer = self.delegates[property_name].renderer
-                rendered = renderer.render_data(self.state[property_name])
-                id = self.get_property_path(property_name).replace("/", "-")[1:]
+                if renderer.visible:
+                    rendered = renderer.render_data(self.state[property_name])
+                    id = self.get_property_path(property_name).replace("/", "-")[1:]
 
-                yield f"event:{id}\n"
-                for line in rendered.split("\n"):
-                    yield f"data: {line}\n"
-                yield "\n"
+                    yield f"event:{id}\n"
+                    for line in rendered.split("\n"):
+                        yield f"data: {line}\n"
+                    yield "\n"
+                else:
+                    yield ""
 
     async def do(self, action_name: str, params: Dict[str, Any]) -> Any:
         return await self.actions[action_name].call(params, lambda action_name: self.actions[action_name])

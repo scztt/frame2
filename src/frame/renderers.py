@@ -2,6 +2,7 @@ from typing import Dict, Any, Generic, Tuple, Type
 import uuid
 
 from annotated_types import T
+import jinja2
 from frame.images import ImageRef
 from frame.registry import TypeRegistry
 import html as html_module
@@ -240,6 +241,7 @@ class RendererBase:
     def __init__(self, settings: Dict[str, Any]):
         self.folding = settings.get("folding", False)
         self.streaming = True
+        self.visible = True
 
     def render_data(self, data: Any) -> str:
         raise NotImplementedError("Subclasses must implement this method")
@@ -254,8 +256,8 @@ class RendererBase:
 renderer_registry = TypeRegistry[RendererBase]("renderer")
 
 
-def make_renderer(settings: Dict[str, Any] | str) -> Tuple[RendererBase, Dict[str, Any]]:
-    return renderer_registry.make(settings)
+def make_renderer(config: "Config", settings: Dict[str, Any] | str) -> Tuple[RendererBase, Dict[str, Any]]:
+    return renderer_registry.make(settings, config=config)
 
 
 # Fix the load_renderer_types function
@@ -268,6 +270,13 @@ def load_renderer_types(settings: Dict[str, Any]):
 ############################################################
 # Implementations
 ############################################################
+
+class HiddenRenderer(RendererBase, name="hidden"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.visible = False
+        settings["visible"] = False
+
 class StringRenderer(RendererBase, name="string"):
     def render_data(self, data: Any) -> str:
         return f"<div class='value'>{data}</div>"

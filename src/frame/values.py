@@ -1,5 +1,6 @@
 from enum import Enum
 from typing import Any, Dict
+from pathlib import Path
 
 from frame.images import image_repo
 from frame.parsers import make_parser
@@ -51,7 +52,7 @@ class ValueDelegate:
         self.getter, get_settings = values.make(desc.get("get"))
 
         self.updates = get_settings.get("poll", None)
-        self.renderer, _ = make_renderer(desc.get("renderer", "string"))
+        self.renderer, _ = make_renderer({}, desc.get("renderer", "string"))
 
     async def get(self) -> Any:
         if self.getter is None:
@@ -127,7 +128,7 @@ class Tail(ValueBase, name="tail"):
         settings["renderer"] = settings.get("renderer", "log")
         super().__init__(settings)
 
-        self.path = settings["path"]
+        self.path = Path(settings["path"]).expanduser().absolute()
         self.lines = settings.get("lines", 100)
         self.mod_time = 0
         self.last_value = ""
@@ -139,4 +140,23 @@ class Tail(ValueBase, name="tail"):
             self.mod_time = mod_time
             self.last_value = tail_lines(self.path, self.lines)
 
+        return self.last_value
+
+class FileReader(ValueBase, name="file"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+
+        self.path = Path(settings["path"]).expanduser().absolute()
+        self.mod_time = 0
+        self.last_value = ""
+
+    async def get(self):
+        mod_time = os.path.getmtime(self.path)
+
+        if mod_time > self.mod_time:
+            self.mod_time = mod_time
+            with open(self.path, "r") as f:
+                self.last_value = f.read();
+    
         return self.last_value

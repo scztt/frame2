@@ -46,13 +46,13 @@ def make_action(config: "Config", name: str, settings: str | Dict[str, Any]) -> 
 # Implementations
 ############################################################
 class ShellAction(ActionBase, name="shell"):
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: Dict[str, Any], config:"Config"):
         super().__init__(settings)
         self.command = settings["cmd"]
         self.parser, _ = make_parser(settings.get("parser", "string"))
         self.sudo = settings.get("sudo", False)
         if settings.get("renderer"):
-            self.renderer, _ = make_renderer(settings["renderer"])
+            self.renderer, _ = make_renderer(config, settings["renderer"])
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
         result_str = await run_command(self.command, sudo=self.sudo)
@@ -163,7 +163,7 @@ class SequenceAction(ActionBase, name="sequence"):
                 self.actions.append(action_config)
 
         if settings.get("renderer"):
-            self.renderer, _ = make_renderer(settings["renderer"])
+            self.renderer, _ = make_renderer(config, settings["renderer"])
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
         for action in self.actions:
@@ -176,22 +176,25 @@ class SequenceAction(ActionBase, name="sequence"):
 
 
 class OSCAction(ActionBase, name="osc"):
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: Dict[str, Any], config:"Config"):
         super().__init__(settings)
         self.path = settings["path"]
         self.args = settings.get("args", [])
         self.client = udp_client.SimpleUDPClient(settings["address"], int(settings["port"]))
 
         if settings.get("renderer"):
-            self.renderer, _ = make_renderer(settings.get("renderer", "slider"))
+            self.renderer, _ = make_renderer(config, settings.get("renderer", "slider"))
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
-        msg = [item for pair in params.items() for item in pair]
-        self.client.send_message(self.path, msg)
+        if self.args:
+            self.client.send_message(self.path, *self.args)
+        else:
+            msg = [item for pair in params.items() for item in pair]
+            self.client.send_message(self.path, msg)
 
 
 class FileWriteAction(ActionBase, name="file_write"):
-    def __init__(self, settings: Dict[str, Any]):
+    def __init__(self, settings: Dict[str, Any], config:"Config"):
         super().__init__(settings)
         self.path = Path(settings["path"]).expanduser().absolute()
         self.template_str = settings["template"]
@@ -199,7 +202,7 @@ class FileWriteAction(ActionBase, name="file_write"):
         self.append = settings.get("append", False)
 
         if settings.get("renderer"):
-            self.renderer, _ = make_renderer(settings["renderer"])
+            self.renderer, _ = make_renderer(config, settings["renderer"])
 
     def _write_sync(self, content: str):
         mode = 'a' if self.append else 'w'
