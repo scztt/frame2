@@ -22,11 +22,16 @@
           preserve
           {%- endif %}
 
+    - name: Check if destination requires sudo
+      set_fact:
+        needs_sudo: "{{ step.sudo | default(false) or step.dest.startswith('/Applications') or step.dest.startswith('/Library') or step.dest.startswith('/usr') or step.dest.startswith('/opt') }}"
+
     - name: Ensure destination directory exists
       file:
         path: "{{ step.dest | dirname }}"
         state: directory
         mode: '0755'
+      become: "{{ needs_sudo }}"
       when: step.create_dirs | default(true)
 
     - name: Sync file or directory
@@ -34,7 +39,7 @@
         src: "{{ step.src }}"
         dest: "{{ step.dest }}"
         delete: yes
-      become: "{{ step.sudo | default(false) }}"
+      become: "{{ needs_sudo }}"
 
     - name: Set permissions
       file:
@@ -43,11 +48,12 @@
         owner: "{{ step.owner | default(omit) }}"
         group: "{{ step.group | default(omit) }}"
         recurse: "{{ step.recursive_mode | default(false) }}"
-      become: "{{ step.sudo | default(false) }}"
+      become: "{{ needs_sudo }}"
       when: resolved_mode != 'preserve' and not ansible_check_mode
 
     - name: Remove quarantine attribute (macOS)
       command: "xattr -d -r com.apple.quarantine {{ step.dest }}"
+      become: "{{ needs_sudo }}"
       failed_when: false
       when: (ansible_os_family == "Darwin") and (step.remove_quarantine | default(false))
 

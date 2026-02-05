@@ -122,6 +122,7 @@
           </dict>
           </plist>
         mode: '0644'
+      become: "{{ is_system }}"
       when: step.program is defined
 
     # --- Load/unload service ---

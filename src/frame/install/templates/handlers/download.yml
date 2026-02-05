@@ -1,31 +1,63 @@
 ---
 # Handler for download type
-# Downloads a file from a URL with optional checksum validation
-# All tasks tagged 'artifact' for selective execution with --artifacts-only
+# Thin wrapper around ansible.builtin.get_url — pass parameters directly
+#
+# Required:
+#   url: https://example.com/file.zip
+#   dest: /path/to/file.zip           # full destination path
+#
+# Optional (passed directly to get_url):
+#   checksum: sha256:abc123...        # or md5:, sha1:, etc.
+#   mode: '0644'
+#   force: false                      # re-download even if exists
+#   timeout: 10
+#   headers:                          # custom HTTP headers
+#     Authorization: "Bearer token"
+#
+# Optional extraction:
+#   unarchive: true                   # extract after download
+#   unarchive_dest: /extract/here     # defaults to dest's directory
+#   remove_quarantine: true           # remove macOS quarantine attr
 
 - name: "Download: {{ step.url | basename }}"
   block:
-    - name: Ensure resources directory exists
+    - name: Ensure destination directory exists
       file:
-        path: "{{ config.resources_dir }}"
+        path: "{{ step.dest | dirname }}"
         state: directory
-        mode: '0755'
+        mode: "0755"
 
     - name: Download file
       ansible.builtin.get_url:
         url: "{{ step.url }}"
-        dest: "{{ config.resources_dir }}/{{ step.dest | default(step.url | basename) }}"
-        checksum: "{{ 'sha256:' + step.sha256 if step.sha256 is defined else omit }}"
+        dest: "{{ step.dest }}"
+        checksum: "{{ step.checksum | default(omit) }}"
+        mode: "{{ step.mode | default(omit) }}"
+        force: "{{ step.force | default(omit) }}"
+        timeout: "{{ step.timeout | default(omit) }}"
+        headers: "{{ step.headers | default(omit) }}"
       register: download_result
+
+    - name: Ensure extraction directory exists
+      file:
+        path: "{{ step.unarchive_dest | default(step.dest | dirname) }}"
+        state: directory
+        mode: "0755"
+      when: step.unarchive | default(false)
 
     - name: Extract downloaded archive
       ansible.builtin.unarchive:
-        src: "{{ config.resources_dir }}/{{ step.dest | default(step.url | basename) }}"
-        dest: "{{ config.resources_dir }}"
+        src: "{{ step.dest }}"
+        dest: "{{ step.unarchive_dest | default(step.dest | dirname) }}"
         remote_src: yes
-      when: step.unzip | default(false)
+      when: step.unarchive | default(false)
+
+    - name: Remove quarantine attribute (macOS)
+      command: "xattr -d -r com.apple.quarantine {{ step.unarchive_dest | default(step.dest | dirname) if step.unarchive | default(false) else step.dest }}"
+      failed_when: false
+      when: step.remove_quarantine | default(false)
 
     - name: Report download
       debug:
-        msg: "Downloaded {{ step.url | basename }} to {{ config.resources_dir }}"
+        msg: "Downloaded {{ step.url | basename }} to {{ step.dest }}{{ ' (extracted)' if step.unarchive | default(false) else '' }}"
   tags: [artifact]
