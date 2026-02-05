@@ -1,23 +1,12 @@
 import typer
-import uvicorn
 from pathlib import Path
 
 from frame.install import install as run_install
+from frame.server import server_app, run_server
 
 app_cli = typer.Typer()
-
-
-@app_cli.command()
-def run_server(host: str = "0.0.0.0", port: int = 8000):
-    """Run the FastAPI server"""
-    uvicorn.run(
-        "frame.main:app",
-        host=host,
-        port=port,
-        reload=True,
-        reload_includes=["*.yaml", "*.py"],
-        reload_dirs=["examples", "src/frame"],
-    )
+app_cli.add_typer(server_app, name="server")
+app_cli.command("run-server")(run_server)
 
 
 @app_cli.command()
