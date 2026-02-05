@@ -25,7 +25,6 @@
       file:
         path: "{{ step.dest | dirname }}"
         state: directory
-        mode: "0755"
 
     - name: Download file
       ansible.builtin.get_url:
@@ -42,7 +41,6 @@
       file:
         path: "{{ step.unarchive_dest | default(step.dest | dirname) }}"
         state: directory
-        mode: "0755"
       when: step.unarchive | default(false)
 
     - name: Extract downloaded archive

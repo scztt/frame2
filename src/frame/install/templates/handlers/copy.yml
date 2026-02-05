@@ -30,9 +30,9 @@
       file:
         path: "{{ step.dest | dirname }}"
         state: directory
-        mode: '0755'
       become: "{{ needs_sudo }}"
       when: step.create_dirs | default(true)
+      # Don't set mode - system dirs like /Applications already exist with correct perms
 
     - name: Sync file or directory
       ansible.posix.synchronize:

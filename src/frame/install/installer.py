@@ -1,6 +1,7 @@
 """Main installer logic for Frame install command."""
 
 import getpass
+import shutil
 import typer
 import yaml
 import ansible_runner
@@ -16,6 +17,17 @@ from .generators import (
     get_handler_dependencies,
     step_label,
 )
+
+
+def check_ansible_installed() -> None:
+    """Verify ansible-playbook is available, exit with helpful message if not."""
+    if shutil.which("ansible-playbook") is None:
+        typer.echo("❌ Error: ansible-playbook not found", err=True)
+        typer.echo("", err=True)
+        typer.echo("Frame requires Ansible to be installed. Install it with:", err=True)
+        typer.echo("  brew install ansible     # macOS with Homebrew", err=True)
+        typer.echo("  pip install ansible      # or via pip", err=True)
+        raise typer.Exit(1)
 
 
 def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
@@ -279,6 +291,9 @@ def install(
     3. Executes via ansible-runner
     4. Reports results
     """
+    # Check ansible is available before doing anything else
+    check_ansible_installed()
+
     typer.echo("📦 Frame Installer")
     typer.echo(f"Reading state from: {state_file}")
     if host:

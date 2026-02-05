@@ -41,7 +41,6 @@
       file:
         path: "{{ plist_dir }}"
         state: directory
-        mode: '0755'
       become: "{{ is_system }}"
 
     # --- Copy existing plist file ---

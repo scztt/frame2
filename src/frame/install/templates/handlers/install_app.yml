@@ -32,8 +32,8 @@
       file:
         path: "{{ target_location }}"
         state: directory
-        mode: '0755'
       become: "{{ needs_sudo }}"
+      # Don't set mode - system dirs like /Applications already exist with correct perms
 
     - name: Sync app bundle to target location
       ansible.posix.synchronize:
@@ -90,8 +90,8 @@
       file:
         path: "{{ target_location }}"
         state: directory
-        mode: '0755'
       become: "{{ needs_sudo }}"
+      # Don't set mode - system dirs like /Applications already exist with correct perms
 
     # --- DMG handling ---
     - name: Mount DMG image
