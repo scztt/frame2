@@ -1,11 +1,12 @@
 """Main installer logic for Frame install command."""
 
+import getpass
 import typer
 import yaml
 import ansible_runner
 from pathlib import Path
 import tempfile
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from .generators import (
     generate_site_yml,
@@ -13,6 +14,7 @@ from .generators import (
     generate_inventory,
     load_handler,
     get_handler_dependencies,
+    step_label,
 )
 
 
@@ -110,6 +112,9 @@ def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
             if 'url' not in entry:
                 typer.echo(f"❌ Error: Entry {i} (download) missing 'url' field", err=True)
                 raise typer.Exit(1)
+            if 'dest' not in entry:
+                typer.echo(f"❌ Error: Entry {i} (download) missing 'dest' field", err=True)
+                raise typer.Exit(1)
 
 
 def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
@@ -122,254 +127,148 @@ def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
     return handlers
 
 
-def _step_label(entry: Dict[str, Any]) -> str:
-    """Generate a human-readable label for a state entry."""
-    # Use explicit name if provided
-    if 'name' in entry:
-        return entry['name']
-    # Fall back to auto-generated label
-    t = entry['type']
-    if t == 'install_app':
-        source = entry.get('path', entry.get('remote', {}).get('url', '?'))
-        return source.split('/')[-1]
-    elif t == 'homebrew':
-        pkgs = entry.get('packages', [])
-        label = ', '.join(pkgs[:3])
-        if len(pkgs) > 3:
-            label += f'... ({len(pkgs)} total)'
-        return f"Homebrew: {label}"
-    elif t == 'copy':
-        src_name = entry['src'].split('/')[-1]
-        return f"Copy: {src_name} → {entry['dest']}"
-    elif t == 'launchctl':
-        label = entry.get('label', entry.get('src', '?').split('/')[-1].replace('.plist', ''))
-        return f"Service: {label}"
-    elif t == 'defaults':
-        count = len(entry.get('items', []))
-        return f"Defaults: {count} setting(s)"
-    elif t == 'command':
-        args = entry.get('args', '')
-        if isinstance(args, str):
-            return args[:50]
-        return ' '.join(str(a) for a in args[:3])
-    elif t == 'systemsetup':
-        count = len(entry.get('items', {}))
-        return f"System: {count} setting(s)"
-    elif t == 'npx':
-        return f"NPX: {entry.get('package', '?')}"
-    elif t == 'audio':
-        return "Audio configuration"
-    elif t == 'download':
-        return entry.get('url', '?').split('/')[-1]
-    elif t == 'install_pkg':
-        return entry['path'].split('/')[-1]
-    else:
-        return str(t)
+def _run_with_status(
+    ansible_dir: Path,
+    cmdline: str,
+    state_entries: List[Dict[str, Any]],
+    verbose: bool,
+    check: bool = False,
+    become_password: Optional[str] = None,
+):
+    """Run ansible and display live step-by-step progress.
 
-
-def _run_check(ansible_dir: Path, cmdline: str, state_entries: List[Dict[str, Any]], verbose: bool):
-    """Run ansible in check mode and display a per-step status summary."""
+    Streams results as they happen. Each step prints when it starts,
+    sub-tasks print as they complete. Failures show full error details.
+    """
     current_step = [-1]
-    step_results: Dict[int, List[Dict[str, str]]] = {i: [] for i in range(len(state_entries))}
-    skip_actions = {'set_fact', 'debug', 'include_tasks', 'meta', 'include_vars', 'setup'}
-    step_names = {_step_label(e) for e in state_entries}
+    step_has_failed = set()
+    step_has_changed = set()
+    step_names = {step_label(e) for e in state_entries}
+    total_steps = len(state_entries)
 
     def on_event(event):
         event_type = event.get('event', '')
         data = event.get('event_data', {})
 
-        # Detect step boundaries via playbook_on_task_start for include_tasks
+        # Detect step boundaries — each include_tasks fires this
         if event_type == 'playbook_on_task_start':
             task_name = data.get('task', '')
             if task_name in step_names:
                 current_step[0] += 1
-                if current_step[0] < len(state_entries):
-                    label = _step_label(state_entries[current_step[0]])
-                    typer.echo(f"  Checking: {label}")
+                idx = current_step[0]
+                label = step_label(state_entries[idx])
+                typer.echo(f"  [{idx + 1}/{total_steps}] {label}")
             return
 
-        # Collect task results
+        # Track results
         if event_type in ('runner_on_ok', 'runner_on_failed', 'runner_on_skipped',
                           'runner_item_on_ok', 'runner_item_on_failed', 'runner_item_on_skipped'):
-            task_name = data.get('task', '')
             idx = current_step[0]
             if idx < 0 or idx >= len(state_entries):
                 return
-            action = data.get('task_action', '')
-            if action in skip_actions:
-                return
 
-            # For item events, append the item label
+            task_name = data.get('task', '')
             res = data.get('res', {})
+
+            # Append item label for loop tasks
             if 'item' in res:
                 item = res['item']
                 if isinstance(item, str):
                     task_name = f"{task_name} ({item})"
 
-            if event_type in ('runner_on_ok', 'runner_item_on_ok'):
-                changed = res.get('changed', False)
-                status = 'changed' if changed else 'ok'
-            elif event_type in ('runner_on_failed', 'runner_item_on_failed'):
-                status = 'failed'
+            is_failed = event_type in ('runner_on_failed', 'runner_item_on_failed')
+            is_changed = res.get('changed', False)
+
+            if is_failed:
+                step_has_failed.add(idx)
+                status_mark = typer.style('[!]', fg='red')
+            elif is_changed:
+                step_has_changed.add(idx)
+                status_mark = typer.style('[~]', fg='green')
             else:
-                status = 'skipped'
+                status_mark = typer.style('[x]', fg='green')
 
-            step_results[idx].append({'name': task_name, 'status': status})
+            # Verbose: print every sub-task
+            if verbose:
+                typer.echo(f"      {status_mark} {task_name}")
 
-    typer.echo("🔍 Running status check...")
+            # Always show failure details with full context
+            if is_failed:
+                if not verbose:
+                    typer.echo(typer.style(f"      [!] {task_name}", fg='red'))
+
+                # Show all useful error fields
+                msg = res.get('msg', '')
+                stderr = res.get('stderr', '').strip()
+                stdout = res.get('stdout', '').strip()
+                cmd = res.get('cmd', '')
+                rc = res.get('rc')
+
+                if msg:
+                    typer.echo(typer.style(f"          Error: {msg}", fg='red'))
+                if cmd:
+                    if isinstance(cmd, list):
+                        cmd = ' '.join(cmd)
+                    typer.echo(f"          Command: {cmd}")
+                if rc is not None:
+                    typer.echo(f"          Exit code: {rc}")
+                if stdout:
+                    typer.echo(f"          stdout: {stdout[:500]}")
+                if stderr:
+                    typer.echo(typer.style(f"          stderr: {stderr[:500]}", fg='red'))
+
+                # Show task path for debugging
+                task_path = data.get('task_path', '')
+                if task_path:
+                    typer.echo(f"          Task: {task_path}")
+
     typer.echo()
+
+    # Pass become password via environment variable
+    envvars = {}
+    if become_password:
+        envvars['ANSIBLE_BECOME_PASS'] = become_password
 
     result = ansible_runner.run(
         private_data_dir=str(ansible_dir),
         playbook="site.yml",
         cmdline=cmdline or None,
-        verbosity=3 if verbose else 0,
-        quiet=not verbose,
+        quiet=True,
         event_handler=on_event,
+        envvars=envvars if envvars else None,
     )
 
-    # Display summary
+    # Summary
     typer.echo()
-    typer.echo("📋 Installation Status")
-    typer.echo()
+    ran = current_step[0] + 1
+    ok_count = ran - len(step_has_failed)
+    failed_count = len(step_has_failed)
+    skipped_count = total_steps - ran
 
-    total_ok = 0
-    total_changed = 0
-    total_failed = 0
-    total_skipped = 0
-
-    for i, entry in enumerate(state_entries):
-        label = _step_label(entry)
-        tasks = step_results.get(i, [])
-        statuses = [t['status'] for t in tasks]
-
-        for s in statuses:
-            if s == 'ok':
-                total_ok += 1
-            elif s == 'changed':
-                total_changed += 1
-            elif s == 'failed':
-                total_failed += 1
-            elif s == 'skipped':
-                total_skipped += 1
-
-        if 'failed' in statuses:
-            checkbox = '[!]'
-            color = 'red'
-        elif 'changed' in statuses:
-            checkbox = '[ ]'
-            color = 'yellow'
-        elif tasks:
-            checkbox = '[x]'
-            color = 'green'
-        else:
-            checkbox = '[ ]'
-            color = 'white'
-
-        typer.echo(typer.style(f"  {checkbox} {i + 1}. {label}", fg=color))
-
-        # Show sub-tasks that are notable (changed or failed)
-        for task in tasks:
-            if task['status'] == 'changed':
-                typer.echo(typer.style(f"      [ ] {task['name']}", fg='yellow'))
-            elif task['status'] == 'failed':
-                typer.echo(typer.style(f"      [!] {task['name']}", fg='red'))
-            elif task['status'] == 'ok':
-                typer.echo(typer.style(f"      [x] {task['name']}", fg='green'))
-
-    typer.echo()
-    parts = []
-    if total_ok:
-        parts.append(typer.style(f"{total_ok} ok", fg='green'))
-    if total_changed:
-        parts.append(typer.style(f"{total_changed} changed", fg='yellow'))
-    if total_failed:
-        parts.append(typer.style(f"{total_failed} failed", fg='red'))
-    if total_skipped:
-        parts.append(f"{total_skipped} skipped")
-    typer.echo("  " + " · ".join(parts))
+    if failed_count == 0 and skipped_count == 0:
+        typer.echo(typer.style(f"  All {ok_count} steps completed successfully", fg='green'))
+    else:
+        parts = []
+        if ok_count > 0:
+            parts.append(typer.style(f"{ok_count} ok", fg='green'))
+        if failed_count:
+            parts.append(typer.style(f"{failed_count} failed", fg='red'))
+        if skipped_count:
+            parts.append(f"{skipped_count} skipped")
+        typer.echo("  " + " · ".join(parts))
 
     return result
 
 
-def format_summary_line(entry: Dict[str, Any], index: int) -> str:
-    """Format a single summary line for an entry."""
-    entry_type = entry['type']
-
-    if entry_type == 'install_app':
-        if 'remote' in entry:
-            app_name = entry['remote']['url'].split('/')[-1]
-        else:
-            app_name = Path(entry['path']).name
-        location = entry.get('install_location', '/Applications')
-        return f"  {index}. Installed {app_name} → {location}"
-
-    elif entry_type == 'defaults':
-        count = len(entry.get('items', []))
-        return f"  {index}. Applied {count} macOS defaults setting(s)"
-
-    elif entry_type == 'homebrew':
-        count = len(entry.get('packages', []))
-        packages = ', '.join(entry.get('packages', [])[:3])
-        if len(entry.get('packages', [])) > 3:
-            packages += '...'
-        return f"  {index}. Installed {count} Homebrew package(s): {packages}"
-
-    elif entry_type == 'launchctl':
-        if 'label' in entry:
-            service_name = entry['label']
-        elif 'src' in entry:
-            service_name = Path(entry['src']).stem
-        else:
-            service_name = 'unknown'
-        loaded = entry.get('loaded', True)
-        started = entry.get('started', True)
-        status = []
-        if loaded:
-            status.append('loaded')
-        if started:
-            status.append('started')
-        status_str = ', '.join(status) if status else 'configured'
-        return f"  {index}. Service {service_name} ({status_str})"
-
-    elif entry_type == 'systemsetup':
-        count = len(entry.get('items', {}))
-        return f"  {index}. Configured {count} system setting(s)"
-
-    elif entry_type == 'npx':
-        package = entry.get('package', 'unknown')
-        return f"  {index}. Ran npx {package}"
-
-    elif entry_type == 'audio':
-        parts = []
-        if 'output' in entry:
-            parts.append(f"output={entry['output']}")
-        if 'input' in entry:
-            parts.append(f"input={entry['input']}")
-        if 'system' in entry:
-            parts.append(f"system={entry['system']}")
-        if 'volume' in entry:
-            parts.append(f"{len(entry['volume'])} volume(s)")
-        if 'aggregate' in entry:
-            parts.append(f"{len(entry['aggregate'])} aggregate(s)")
-        return f"  {index}. Audio: {', '.join(parts)}"
-
-    elif entry_type == 'download':
-        url = entry.get('url', 'unknown')
-        return f"  {index}. Downloaded {url.split('/')[-1]}"
-
-    else:
-        return f"  {index}. Executed {entry_type}"
-
-
 def install(
     state_file: Path,
-    sudo: bool = False,
     verbose: bool = False,
     artifacts_only: bool = False,
     check: bool = False,
     diff: bool = False,
     list_tasks: bool = False,
+    ask_become_pass: bool = False,
+    host: Optional[str] = None,
 ) -> None:
     """
     Execute installation based on state.yaml file.
@@ -382,6 +281,8 @@ def install(
     """
     typer.echo("📦 Frame Installer")
     typer.echo(f"Reading state from: {state_file}")
+    if host:
+        typer.echo(f"Target: {host} (remote via SSH)")
 
     # Read state.yaml
     if not state_file.exists():
@@ -410,23 +311,16 @@ def install(
         typer.echo("❌ Error: Steps must be a list of entries", err=True)
         raise typer.Exit(1)
 
-    # Resolve resources_dir to absolute path relative to state file
-    resources_dir = config.get('resources_dir', './resources')
-    config['resources_dir'] = str((state_file.resolve().parent / resources_dir).resolve())
+    # Set resources_dir default to state file's directory (absolute)
+    # User-specified values are passed through as-is
+    if 'resources_dir' not in config:
+        config['resources_dir'] = str(state_file.resolve().parent)
 
     typer.echo(f"Found {len(state_entries)} installation step(s)")
     if artifacts_only:
         typer.echo("Mode: artifacts only (download without install)")
     if check:
         typer.echo("Mode: dry run (--check)")
-
-    # Show high-level step summary for list-tasks
-    if list_tasks:
-        typer.echo()
-        typer.echo("Steps:")
-        for i, entry in enumerate(state_entries, 1):
-            typer.echo(format_summary_line(entry, i))
-        typer.echo()
 
     # Validate entries
     validate_state_entries(state_entries)
@@ -435,21 +329,30 @@ def install(
     required_handlers = get_required_handlers(state_entries)
 
     # Create temporary ansible directory structure
+    # ansible-runner expects: project/ for playbooks, inventory/ for hosts
     with tempfile.TemporaryDirectory() as tmpdir:
         ansible_dir = Path(tmpdir) / "ansible"
         ansible_dir.mkdir()
 
-        types_dir = ansible_dir / "types"
+        # project/ contains playbooks and task files
+        project_dir = ansible_dir / "project"
+        project_dir.mkdir()
+
+        types_dir = project_dir / "types"
         types_dir.mkdir()
+
+        # inventory/ contains host definitions
+        inventory_dir = ansible_dir / "inventory"
+        inventory_dir.mkdir()
 
         typer.echo("⚙️  Generating ansible playbooks...")
 
         # Generate site.yml with one include_tasks per step
-        (ansible_dir / "site.yml").write_text(generate_site_yml(state_entries, config))
+        (project_dir / "site.yml").write_text(generate_site_yml(state_entries, config, host=host))
 
         # Generate config files
-        (ansible_dir / "ansible.cfg").write_text(generate_ansible_cfg())
-        (ansible_dir / "inventory.ini").write_text(generate_inventory())
+        (project_dir / "ansible.cfg").write_text(generate_ansible_cfg())
+        (inventory_dir / "hosts").write_text(generate_inventory(host=host))
 
         # Generate required type handlers
         for handler_type in required_handlers:
@@ -460,6 +363,14 @@ def install(
                 typer.echo(f"❌ Error: Unknown handler type: {handler_type}", err=True)
                 raise typer.Exit(1)
 
+        # List tasks mode: just show the plan and return
+        if list_tasks:
+            typer.echo()
+            for i, entry in enumerate(state_entries, 1):
+                typer.echo(f"  [ ] {i}. {step_label(entry)}")
+            typer.echo()
+            return
+
         # Build cmdline args for ansible
         cmdline_parts = []
         if artifacts_only:
@@ -468,63 +379,29 @@ def install(
             cmdline_parts.append("--check")
         if diff:
             cmdline_parts.append("--diff")
-        if list_tasks:
-            cmdline_parts.append("--list-tasks")
-
         cmdline = " ".join(cmdline_parts) if cmdline_parts else ""
 
-        # Check mode: run quietly and show status summary
-        if check:
-            result = _run_check(ansible_dir, cmdline, state_entries, verbose)
-            if result.status != "successful":
-                raise typer.Exit(1)
-            return
+        # Prompt for sudo password if requested
+        become_password = None
+        if ask_become_pass:
+            become_password = getpass.getpass("BECOME password: ")
 
-        if list_tasks:
-            typer.echo("Ansible tasks:")
-            typer.echo()
-
-        if not list_tasks:
-            typer.echo("🚀 Executing installation...")
         if verbose:
             typer.echo(f"   Working directory: {ansible_dir}")
+            typer.echo(f"   Inventory: {inventory_dir / 'hosts'}")
+            typer.echo("   Inventory contents:")
+            typer.echo((inventory_dir / 'hosts').read_text())
 
-        # Run ansible playbook using ansible-runner
-        result = ansible_runner.run(
-            private_data_dir=str(ansible_dir),
-            playbook="site.yml",
-            cmdline=cmdline or None,
-            verbosity=3 if verbose else 0,
-            quiet=False if list_tasks else (not verbose),
+        result = _run_with_status(
+            ansible_dir, cmdline, state_entries, verbose,
+            check=check, become_password=become_password
         )
 
-        if list_tasks:
-            return
-
-        # Report results
-        typer.echo()
         if result.status == "successful":
-            typer.echo("✅ Installation completed successfully!")
             typer.echo()
-
-            # Show summary
-            typer.echo("Summary:")
-            for i, entry in enumerate(state_entries, 1):
-                typer.echo(format_summary_line(entry, i))
-
+            typer.echo("✅ Done!")
         elif result.status == "failed":
-            typer.echo("❌ Installation failed!", err=True)
             typer.echo()
-
-            if verbose or result.stats:
-                typer.echo("Error details:")
-                if result.stats and 'failures' in result.stats.get('localhost', {}):
-                    typer.echo(f"  Failed tasks: {result.stats['localhost']['failures']}")
-
-            typer.echo()
-            typer.echo("Run with --verbose for detailed error information")
-            raise typer.Exit(1)
-
-        else:
-            typer.echo(f"⚠️  Installation ended with status: {result.status}", err=True)
+            if not verbose:
+                typer.echo("Run with --verbose for detailed error information")
             raise typer.Exit(1)
