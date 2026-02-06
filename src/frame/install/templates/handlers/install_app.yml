@@ -102,7 +102,7 @@
     - name: Get mount point
       set_fact:
         mount_point: "{{ mount_result.stdout_lines[-1].split('\t') | last | trim }}"
-      when: (downloaded_path | lower).endswith('.dmg')
+      when: (downloaded_path | lower).endswith('.dmg') and mount_result.stdout_lines | default([]) | length > 0
 
     - name: Find .app in mounted volume
       find:
@@ -111,19 +111,19 @@
         file_type: directory
         recurse: no
       register: dmg_apps
-      when: (downloaded_path | lower).endswith('.dmg')
+      when: (downloaded_path | lower).endswith('.dmg') and mount_point is defined
 
     - name: Remove existing app (DMG)
       file:
         path: "{{ target_location }}/{{ dmg_apps.files[0].path | basename }}"
         state: absent
       become: "{{ needs_sudo }}"
-      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps is defined and dmg_apps.files | default([]) | length > 0
 
     - name: Copy app from DMG
       command: "cp -pR '{{ dmg_apps.files[0].path }}' '{{ target_location }}/'"
       become: "{{ needs_sudo }}"
-      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps is defined and dmg_apps.files | default([]) | length > 0
 
     - name: Detach DMG
       command: "hdiutil detach '{{ mount_point }}' -force"
@@ -133,7 +133,7 @@
       command: "xattr -d -r com.apple.quarantine '{{ target_location }}/{{ dmg_apps.files[0].path | basename }}'"
       become: "{{ needs_sudo }}"
       failed_when: false
-      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0 and ansible_os_family == 'Darwin'
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps is defined and dmg_apps.files | default([]) | length > 0 and ansible_os_family == 'Darwin'
 
     # --- ZIP handling ---
     - name: Create temp extraction directory
@@ -157,31 +157,31 @@
         file_type: directory
         recurse: yes
       register: zip_apps
-      when: (downloaded_path | lower).endswith('.zip')
+      when: (downloaded_path | lower).endswith('.zip') and extract_dir is defined and extract_dir.path is defined
 
     - name: Remove existing app (ZIP)
       file:
         path: "{{ target_location }}/{{ zip_apps.files[0].path | basename }}"
         state: absent
       become: "{{ needs_sudo }}"
-      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps is defined and zip_apps.files | default([]) | length > 0
 
     - name: Copy app from ZIP
       command: "cp -pR '{{ zip_apps.files[0].path }}' '{{ target_location }}/'"
       become: "{{ needs_sudo }}"
-      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps is defined and zip_apps.files | default([]) | length > 0
 
     - name: Clean up extraction directory
       file:
         path: "{{ extract_dir.path }}"
         state: absent
-      when: (downloaded_path | lower).endswith('.zip') and extract_dir.path is defined
+      when: (downloaded_path | lower).endswith('.zip') and extract_dir is defined and extract_dir.path is defined
 
     - name: Remove quarantine (ZIP)
       command: "xattr -d -r com.apple.quarantine '{{ target_location }}/{{ zip_apps.files[0].path | basename }}'"
       become: "{{ needs_sudo }}"
       failed_when: false
-      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0 and ansible_os_family == 'Darwin'
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps is defined and zip_apps.files | default([]) | length > 0 and ansible_os_family == 'Darwin'
 
     - name: Report remote installation
       debug:
