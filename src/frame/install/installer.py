@@ -331,6 +331,10 @@ def install(
     if 'resources_dir' not in config:
         config['resources_dir'] = str(state_file.resolve().parent)
 
+    # Always provide cwd - the directory from which `frame install` was invoked
+    # Useful for referencing the current project/venv context
+    config['cwd'] = str(Path.cwd().resolve())
+
     typer.echo(f"Found {len(state_entries)} installation step(s)")
     if artifacts_only:
         typer.echo("Mode: artifacts only (download without install)")

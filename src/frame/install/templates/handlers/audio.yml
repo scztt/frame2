@@ -9,7 +9,7 @@ dependencies:
   include_tasks: types/npx.yml
   vars:
     step:
-      package: macos-audio-devices
+      package: "@spotxyz/macos-audio-devices"
       args: list
       show_output: false
 

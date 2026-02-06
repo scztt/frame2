@@ -154,7 +154,7 @@ steps:
       - run
       - frame
       - --help
-    working_directory: "{{ config.peacecore_root }}/frame2"
+    working_directory: "{{ config.cwd }}"
     show_output: true
 
   # ============================================================================
@@ -167,37 +167,55 @@ steps:
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/disable_autoplay.command"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/disable_autoplay.command"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   - name: Copy enable_autoplay script
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/enable_autoplay.command"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/enable_autoplay.command"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   - name: Copy on_boot script
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/on_boot.command"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/on_boot.command"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   - name: Copy restart_wireguard script
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/restart_wireguard.sh"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/restart_wireguard.sh"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   - name: Copy sclang_wrap script
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/sclang_wrap.sh"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/sclang_wrap.sh"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   - name: Copy validate_drive script
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/validate_drive.sh"
     dest: "{{ ansible_env.HOME }}/Library/Scripts/validate_drive.sh"
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
 
   # --- System scripts (/Library/Scripts/) — requires sudo ---
 
@@ -205,7 +223,10 @@ steps:
     type: copy
     src: "{{ config.peacecore_root }}/CORE/daemons/daily.sh"
     dest: /Library/Scripts/daily.sh
-    mode: "0755"
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
     sudo: true
 
   # --- Settings ---
@@ -290,28 +311,24 @@ steps:
     run_at_load: true
     keep_alive: true
 
-  # Frame — orchestration server
-  - name: Frame server daemon
-    type: launchctl
-    label: com.peacecore.frame
-    program: /opt/homebrew/bin/uv
+  # Frame — orchestration server (uses frame server start to create plist)
+  - name: Start Frame server
+    type: command
     args:
+      - uv
       - run
       - frame
-      - run-server
+      - server
+      - start
       - --config
       - "{{ config.peacecore_root }}/CORE/daemons/peacecore.yaml"
-    working_directory: "{{ config.peacecore_root }}/frame2"
-    stdout_path: "{{ ansible_env.HOME }}/Desktop/frame_logfile.log"
-    stderr_path: "{{ ansible_env.HOME }}/Desktop/frame_error_logfile.log"
-    process_type: Interactive
-    keep_alive: true
-    # NOTE: Original plist has no RunAtLoad — defaults to false in launchd.
-    # Our template defaults to true, so explicitly set false to match.
-    run_at_load: false
-    environment:
-      # TODO: Move password to a secrets management solution
-      SUDO_PASSWORD: "1234"
+      - --label
+      - com.peacecore.frame
+      - --log-path
+      - "{{ ansible_env.HOME }}/Desktop/frame_logfile.log"
+      - --env
+      - SUDO_PASSWORD=1234
+    working_directory: "{{ config.cwd }}"
 
   # Auto-kill monitor — restarts stuck sclang every 30 seconds
   # NOTE: Fixed label bug from original plist (was com.peacecore.supercollider)
