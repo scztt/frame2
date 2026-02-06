@@ -6,6 +6,8 @@ Provides:
 - /install/check - Run --check to populate status
 - /install/run - Run full installation
 - /install/status - SSE stream for live updates
+
+The state file path is configured in the server config YAML via `install_state` key.
 """
 
 import asyncio
@@ -21,6 +23,21 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 router = APIRouter(prefix="/install", tags=["install"])
+
+# Will be set by main.py after config is loaded
+_install_state_path: Optional[Path] = None
+
+
+def set_install_state_path(path: Optional[str]) -> None:
+    """Set the install state file path from config."""
+    global _install_state_path
+    if path:
+        _install_state_path = Path(path)
+
+
+def get_install_state_path() -> Optional[Path]:
+    """Get the configured install state file path."""
+    return _install_state_path
 
 
 class StepStatus(Enum):
@@ -71,9 +88,20 @@ class InstallState:
 
 # Global state (singleton)
 _state = InstallState()
+_state_initialized = False
 
 
 def get_state() -> InstallState:
+    global _state_initialized
+    # Auto-load from config on first access
+    if not _state_initialized and _install_state_path:
+        _state_initialized = True
+        if _install_state_path.exists():
+            _state.state_file = _install_state_path
+            try:
+                _state.steps = parse_state_file(_install_state_path)
+            except Exception as e:
+                _state.last_error = str(e)
     return _state
 
 
@@ -355,31 +383,30 @@ def render_page(state: InstallState) -> str:
                 text-align: center;
                 color: var(--muted);
             }}
-            .file-input {{
-                display: flex;
-                gap: 10px;
-                margin-bottom: 20px;
-            }}
-            .file-input input {{
-                flex: 1;
+            .config-path {{
                 background: var(--card);
-                border: 1px solid var(--accent);
-                color: var(--text);
-                padding: 10px;
+                padding: 10px 16px;
                 border-radius: 6px;
-                font-size: 14px;
+                margin-bottom: 20px;
+                font-size: 13px;
+            }}
+            .config-path .label {{
+                color: var(--muted);
+                margin-right: 8px;
+            }}
+            .config-path .path {{
+                color: var(--text);
+                font-family: monospace;
             }}
         </style>
     </head>
     <body hx-ext="sse" sse-connect="/install/status">
         <h1>Frame Install</h1>
 
-        <form class="file-input" hx-post="/install/load" hx-swap="innerHTML" hx-target="#main">
-            <input type="text" name="state_file"
-                   value="{state.state_file or ''}"
-                   placeholder="Path to state.yml">
-            <button type="submit">Load</button>
-        </form>
+        <div class="config-path">
+            <span class="label">State file:</span>
+            <span class="path">{state.state_file or 'Not configured (set install_state in config.yaml)'}</span>
+        </div>
 
         <div id="main" sse-swap="refresh">
             {status_msg}

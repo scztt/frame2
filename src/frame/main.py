@@ -14,7 +14,7 @@ from frame.images import image_repo
 from collections import OrderedDict
 
 from frame.renderers import render_action, render_simple_value
-from frame.install_ui import router as install_router
+from frame.install_ui import router as install_router, set_install_state_path
 from fastapi.responses import FileResponse
 import os
 from fastapi import Body
@@ -56,7 +56,11 @@ app = FastAPI()
 app.include_router(install_router)
 
 config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
-config = Config(ordered_yaml_load(open(config_path)))
+_raw_config = ordered_yaml_load(open(config_path))
+config = Config(_raw_config)
+
+# Set install state path from config if present
+set_install_state_path(_raw_config.get("install_state"))
 
 
 # --- Login Page ---
