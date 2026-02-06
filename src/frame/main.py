@@ -14,6 +14,7 @@ from frame.images import image_repo
 from collections import OrderedDict
 
 from frame.renderers import render_action, render_simple_value
+from frame.install_ui import router as install_router
 from fastapi.responses import FileResponse
 import os
 from fastapi import Body
@@ -52,6 +53,8 @@ def ordered_yaml_load(stream):
 
 
 app = FastAPI()
+app.include_router(install_router)
+
 config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
 config = Config(ordered_yaml_load(open(config_path)))
 
