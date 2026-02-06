@@ -1,0 +1,337 @@
+# PeaceCore Installation State File
+# Automates setup for PeaceCore art installation
+
+config:
+  peacecore_root: /Volumes/PEACECORE/Installation
+  resources_dir: "{{ config.peacecore_root }}/_resources"
+
+steps:
+  # ============================================================================
+  # System Configuration
+  # ============================================================================
+
+  # Enable screen sharing (via launchctl - SIP protects the plist from direct modification)
+  - name: Enable screen sharing
+    type: command
+    args:
+      [
+        "launchctl",
+        "load",
+        "-w",
+        "/System/Library/LaunchDaemons/com.apple.screensharing.plist",
+      ]
+    sudo: true
+    ignore_errors: true # May already be loaded
+
+  # Enable remote login (SSH)
+  - name: Enable remote login (SSH)
+    type: systemsetup
+    items:
+      remotelogin: "on"
+
+  # ============================================================================
+  # Application Installations
+  # ============================================================================
+
+  - name: Install Wall Designer
+    type: install_app
+    path: "{{ config.peacecore_root }}/_setup/_tools/Wall Designer 3.1.0.dmg"
+
+  # TODO: Open WallDesigner and configure screens (GUI - manual step)
+  # - Open DataPath Layout NY new firmware fix - resized.wdl
+  # - Send configuration to screens
+
+  - name: Install VS Code
+    type: install_app
+    path: "{{ config.peacecore_root }}/_setup/_tools/VSCode-darwin-universal.zip"
+
+  # Install VSCode SuperCollider extension
+  - name: Install vscode-supercollider extension
+    type: command
+    args:
+      - /Applications/Visual Studio Code.app/Contents/Resources/app/bin/code
+      - --install-extension
+      - "{{ config.peacecore_root }}/CORE/vscode-supercollider-0.0.3.vsix"
+    ignore_errors: true
+
+  # Configure VSCode settings for SuperCollider (uses jq for jsonc compatibility)
+  - name: Configure VSCode SuperCollider formatter
+    type: command
+    args: |
+      VSCODE_SETTINGS="$HOME/Library/Application Support/Code/User/settings.json"
+      mkdir -p "$(dirname "$VSCODE_SETTINGS")"
+      if [ ! -f "$VSCODE_SETTINGS" ]; then echo '{}' > "$VSCODE_SETTINGS"; fi
+      # Use jq to merge the setting (handles comments/trailing commas gracefully)
+      jq '. + {"supercollider.sclang.formatterCmd": "/Applications/sclang-format"}' "$VSCODE_SETTINGS" > "$VSCODE_SETTINGS.tmp" && mv "$VSCODE_SETTINGS.tmp" "$VSCODE_SETTINGS"
+    ignore_errors: true
+
+  # Install sclang-format binary
+  - name: Install sclang-format
+    type: copy
+    src: "{{ config.peacecore_root }}/_setup/SuperCollider/sclang-format"
+    dest: /Applications/sclang-format
+    mode:
+      user: rwx
+      group: rx
+      everyone: rx
+
+  - name: Install SuperCollider
+    type: install_app
+    # path: "{{ config.peacecore_root }}/_setup/SuperCollider/SuperCollider.app"
+    remote:
+      url: https://github.com/supercollider/supercollider/releases/download/Version-3.14.1/SuperCollider-3.14.1-macOS-universal.dmg
+      sha256: ed264b32752d27fc86e506dd0a7eb36de7c19ebce73c3fdf2ed5514f8c73f02e
+
+  # Download and extract SC3 plugins to SuperCollider Extensions
+  - name: Install SC3 plugins
+    type: download
+    url: https://github.com/supercollider/sc3-plugins/releases/download/Version-3.13.0/sc3-plugins-3.13.0-macOS.zip
+    dest: "{{ config.resources_dir }}/sc3-plugins-3.13.0-macOS.zip"
+    unarchive: true
+    unarchive_dest: ~/Library/Application Support/SuperCollider/Extensions2
+    remove_quarantine: true
+
+  # TODO: Launch SuperCollider once and allow permissions (GUI - manual step)
+
+  - name: Install TouchDesigner
+    type: install_app
+    path: "{{ config.peacecore_root }}/_setup/_tools/TouchDesigner.2023.11760.arm64.dmg"
+
+  # TODO: Launch TouchDesigner and register with TD Commercial Key (GUI - manual step)
+
+  # Install BlackHole audio driver
+  - name: Install BlackHole audio driver
+    type: install_pkg
+    path: "{{ config.peacecore_root }}/_setup/_tools/BlackHole2ch-0.6.0.pkg"
+
+  # Create Audio MIDI aggregate device (Scarlett + BlackHole)
+  - name: Create PeaceCore aggregate audio device
+    type: audio
+    aggregate:
+      - name: PeaceCore Aggregate
+        main: Scarlett
+        devices:
+          - Scarlett
+          - BlackHole 2ch
+        multi_output: true
+
+  - name: Install Google Chrome
+    type: install_app
+    path: "{{ config.peacecore_root }}/_setup/_tools/googlechrome.dmg"
+
+  # TODO: Chrome Remote Desktop - determine if .app or .pkg format
+
+  # TODO: Grant Full Disk Access to SuperCollider and TouchDesigner (GUI - manual step)
+
+  # ============================================================================
+  # Package Manager and Tools
+  # ============================================================================
+
+  # Install Homebrew (if not already installed)
+  - name: Install Homebrew
+    type: command
+    args: |
+      if ! command -v brew &> /dev/null; then
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+      else
+        echo "Homebrew already installed"
+      fi
+    ignore_errors: true
+
+  - name: Install uv
+    type: homebrew
+    packages:
+      - uv
+
+  # ============================================================================
+  # Frame Setup
+  # ============================================================================
+
+  - name: Test frame installation
+    type: command
+    args:
+      - uv
+      - run
+      - frame
+      - --help
+    show_output: true
+
+  # ============================================================================
+  # PeaceCore Daemons
+  # ============================================================================
+
+  # --- User scripts (~/Library/Scripts/) ---
+
+  - name: Copy disable_autoplay script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/disable_autoplay.command"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/disable_autoplay.command"
+    mode: "0755"
+
+  - name: Copy enable_autoplay script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/enable_autoplay.command"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/enable_autoplay.command"
+    mode: "0755"
+
+  - name: Copy on_boot script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/on_boot.command"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/on_boot.command"
+    mode: "0755"
+
+  - name: Copy restart_wireguard script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/restart_wireguard.sh"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/restart_wireguard.sh"
+    mode: "0755"
+
+  - name: Copy sclang_wrap script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/sclang_wrap.sh"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/sclang_wrap.sh"
+    mode: "0755"
+
+  - name: Copy validate_drive script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/validate_drive.sh"
+    dest: "{{ ansible_env.HOME }}/Library/Scripts/validate_drive.sh"
+    mode: "0755"
+
+  # --- System scripts (/Library/Scripts/) — requires sudo ---
+
+  - name: Copy daily maintenance script
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/daemons/daily.sh"
+    dest: /Library/Scripts/daily.sh
+    mode: "0755"
+    sudo: true
+
+  # --- Settings ---
+
+  - name: Copy SETTINGS_LOCAL template
+    type: copy
+    src: "{{ config.peacecore_root }}/CORE/SETTINGS_LOCAL_EXAMPLE.scd"
+    dest: "{{ ansible_env.HOME }}/Desktop/SETTINGS_LOCAL.scd"
+
+  # --- System daemon (LaunchDaemon, requires sudo) ---
+
+  # Daily maintenance — runs at 4:00 AM
+  - name: Daily maintenance daemon
+    type: launchctl
+    label: com.peacecore.daily
+    system: true
+    program: /bin/bash
+    args:
+      - /Library/Scripts/daily.sh
+    start_calendar_interval:
+      Hour: 4
+      Minute: 0
+    run_at_load: false
+    keep_alive: false
+    started: false
+
+  # --- User daemons (LaunchAgents) ---
+
+  # Enable autoplay — loaded but not auto-started, triggered manually
+  - name: Autoplay start daemon
+    type: launchctl
+    label: com.peacecore.start
+    program: /bin/bash
+    args:
+      - "{{ ansible_env.HOME }}/Library/Scripts/enable_autoplay.command"
+    stdout_path: "{{ ansible_env.HOME }}/Desktop/com.peacecore.start.stdout"
+    stderr_path: "{{ ansible_env.HOME }}/Desktop/com.peacecore.start.stderr"
+    run_at_load: false
+    keep_alive: false
+    started: false
+
+  # Disable autoplay — loaded but not auto-started, triggered manually
+  - name: Autoplay stop daemon
+    type: launchctl
+    label: com.peacecore.stop
+    program: /bin/bash
+    args:
+      - "{{ ansible_env.HOME }}/Library/Scripts/disable_autoplay.command"
+    stdout_path: /tmp/com.peacecore.stop.stdout
+    stderr_path: /tmp/com.peacecore.stop.stderr
+    run_at_load: false
+    keep_alive: false
+    started: false
+
+  # SuperCollider — headless sclang process
+  - name: SuperCollider daemon
+    type: launchctl
+    label: com.peacecore.supercollider
+    program: "{{ ansible_env.HOME }}/Library/Scripts/sclang_wrap.sh"
+    args:
+      - "-D"
+      - "-l"
+      - "./sclang_conf_headless.yaml"
+      - "PLAYBACK.scd"
+    working_directory: "{{ config.peacecore_root }}/CORE"
+    stdout_path: "{{ ansible_env.HOME }}/Desktop/logfile.log"
+    stderr_path: "{{ ansible_env.HOME }}/Desktop/error_logfile.log"
+    process_type: Interactive
+    run_at_load: true
+    keep_alive: true
+
+  # TouchDesigner — visual playback engine
+  - name: TouchDesigner daemon
+    type: launchctl
+    label: com.peacecore.touchdesigner
+    program: /Applications/TouchDesigner.app/Contents/MacOS/TouchDesigner
+    args:
+      - "{{ config.peacecore_root }}/CORE/Touchdesigner/TD_PLAYBACK_correctLayout.toe"
+    stdout_path: "{{ ansible_env.HOME }}/Desktop/td_logfile.log"
+    stderr_path: "{{ ansible_env.HOME }}/Desktop/td_error_logfile.log"
+    process_type: Interactive
+    run_at_load: true
+    keep_alive: true
+
+  # Frame — orchestration server
+  - name: Frame server daemon
+    type: launchctl
+    label: com.peacecore.frame
+    program: /opt/homebrew/bin/uv
+    args:
+      - run
+      - frame
+      - run-server
+      - --config
+      - "{{ config.peacecore_root }}/CORE/daemons/peacecore.yaml"
+    working_directory: "{{ config.peacecore_root }}/frame2"
+    stdout_path: "{{ ansible_env.HOME }}/Desktop/frame_logfile.log"
+    stderr_path: "{{ ansible_env.HOME }}/Desktop/frame_error_logfile.log"
+    process_type: Interactive
+    keep_alive: true
+    # NOTE: Original plist has no RunAtLoad — defaults to false in launchd.
+    # Our template defaults to true, so explicitly set false to match.
+    run_at_load: false
+    environment:
+      # TODO: Move password to a secrets management solution
+      SUDO_PASSWORD: "1234"
+
+  # Auto-kill monitor — restarts stuck sclang every 30 seconds
+  # NOTE: Fixed label bug from original plist (was com.peacecore.supercollider)
+  - name: Auto-kill sclang monitor
+    type: launchctl
+    label: com.peacecore.autokill
+    program: "{{ config.peacecore_root }}/CORE/daemons/auto_kill.sh"
+    start_interval: 30
+    stdout_path: /var/log/sclang_monitor.log
+    stderr_path: /var/log/sclang_monitor_error.log
+    run_at_load: true
+    keep_alive: false
+# ============================================================================
+# Manual Steps
+# ============================================================================
+#
+# TODO: Edit ~/Desktop/SETTINGS_LOCAL.scd
+#   1. Set footagePath to correct footage folder
+#   2. Set touchInChannel to first BlackHole channel index
+#
+# TODO: Start PeaceCore via web interface
+#   1. Open Chrome → http://0.0.0.0:8000
+#   2. Enter password: peacecore1234
+#   3. Stop PeaceCore → Start PeaceCore → wait ~60s

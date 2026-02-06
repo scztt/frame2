@@ -1,0 +1,55 @@
+# Examples of using sudo with different components
+
+# Setup items with sudo (primary use case)
+setup:
+  enable_screen_sharing:
+    type: shell
+    verify: "[[ $(netstat -atp tcp | grep -c '.rfb') -gt 0 ]] && echo 'enabled' || echo 'disabled'"
+    verify_regex: "enabled"
+    set: "launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist"
+    sudo: true  # This will run the 'set' command with sudo
+    depends: []
+
+  install_homebrew:
+    type: shell
+    verify: "which brew && echo 'installed' || echo 'not installed'"
+    verify_regex: "installed"
+    set: '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    sudo: false  # Homebrew installation doesn't need sudo
+    depends: []
+
+# Model values with sudo (for monitoring system info that requires elevated privileges)
+model:
+  system_logs:
+    name: "System Logs"
+    get:
+      type: shell
+      cmd: "tail -n 10 /var/log/system.log"
+      sudo: true  # Reading system logs might need sudo
+      parser: string
+    renderer: string
+
+  network_interfaces:
+    name: "Network Interfaces"
+    get:
+      type: shell
+      cmd: "ifconfig"
+      sudo: false  # ifconfig doesn't need sudo for basic info
+      parser: string
+    renderer: string
+
+# Actions with sudo (for performing system operations)
+actions:
+  restart_network:
+    name: "Restart Network"
+    type: shell
+    cmd: "dscacheutil -flushcache && sudo killall -HUP mDNSResponder"
+    sudo: true  # Network restart needs sudo
+    renderer: action
+
+  check_disk_usage:
+    name: "Check Disk Usage"
+    type: shell
+    cmd: "df -h"
+    sudo: false  # Basic disk usage doesn't need sudo
+    renderer: action

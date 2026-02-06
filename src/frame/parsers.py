@@ -20,7 +20,6 @@ class ParserBase:
 
 registry = TypeRegistry[ParserBase]("parser")
 
-
 class JsonParser(ParserBase, name="json"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
@@ -74,6 +73,32 @@ class StringParser(ParserBase, name="string"):
 
     def __call__(self, value: str) -> str:
         return value
+
+class NumberParser(ParserBase, name="number"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+        self.settings = settings
+
+    def __call__(self, value: str) -> str:
+        try:
+            result = int(value)
+            return result
+        except: 
+            result = float(value)
+            return result
+        raise ValueError(f"Cannot parse as a number: {value}")
+
+
+class NumberParser(ParserBase, name="number"):
+    def __init__(self, settings: Dict[str, Any]):
+        super().__init__(settings)
+
+    def __call__(self, value: str) -> int | float:
+        value = value.strip()
+        try:
+            return int(value)
+        except ValueError:
+            return float(value)
 
 
 class NumberParser(ParserBase, name="number"):

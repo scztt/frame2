@@ -1,6 +1,10 @@
-from typing import Callable, Dict, Any
+from __future__ import annotations
+from typing import Callable, Dict, Any, TYPE_CHECKING
 from frame.notification_targets import make_notification_target
 from frame.registry import TypeRegistry
+
+if TYPE_CHECKING:
+    from frame.model import Config
 from frame.renderers import RendererBase, make_renderer
 from frame.shell import run_command
 from frame.parsers import make_parser
@@ -34,8 +38,9 @@ actions = TypeRegistry[ActionBase]("action", {"renderer": "action"})
 
 
 def make_action(config: "Config", name: str, settings: str | Dict[str, Any]) -> ActionBase:
-    if isinstance(settings, Dict):
-        settings["name"] = name
+    if isinstance(settings, str):
+        settings = {"type": settings}
+    settings["name"] = name
     return actions.make(
         settings,
         config=config,
@@ -151,27 +156,26 @@ class NotificationAction(ActionBase, name="notification"):
 
 
 class SequenceAction(ActionBase, name="sequence"):
-    def __init__(self, settings: Dict[str, Any], config: "Config"):
+    def __init__(self, settings: Dict[str, Any], config: Config | None = None):
         super().__init__(settings)
-        self.actions = []
-        for i, action_config in enumerate(settings["actions"]):
-            if isinstance(action_config, Dict):
-                action_name = f"{self.name}_{i}"
-                action_instance = make_action(config, action_name, action_config)
-                self.actions.append(action_instance)
+        self.action_refs: list[str] = []
+        for action_ref in settings["actions"]:
+            if isinstance(action_ref, str):
+                # Reference to another named action
+                self.action_refs.append(action_ref)
             else:
-                self.actions.append(action_config)
+                # Inline action definition — instantiate it
+                assert config is not None, "SequenceAction with inline actions requires a config"
+                action_name = f"{self.name}_{len(self.action_refs)}"
+                make_action(config, action_name, action_ref)
+                self.action_refs.append(action_name)
 
         if settings.get("renderer"):
             self.renderer, _ = make_renderer(config, settings["renderer"])
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
-        for action in self.actions:
-            resolved_action = action
-            if isinstance(action, str):
-                resolved_action = get_action(action)
-            await resolved_action.call(params, get_action)
-            
+        for ref in self.action_refs:
+            await get_action(ref).call(params, get_action)
         return None
 
 

@@ -71,11 +71,24 @@ class TypeRegistry(Generic[T]):
         if cls is None:
             raise ValueError(f"No type registered with name: {settings['type']}")
 
-        # Create instance with kwargs only if the class can accept them
-        if kwargs and can_accept_kwargs(cls.__init__, kwargs):
-            return cls(settings, **kwargs), settings
+        # Check if class has a settings_type attribute (for dataclass settings)
+        if hasattr(cls, 'settings_type'):
+            settings_type = cls.settings_type
+            # Remove 'type' key before constructing settings dataclass
+            settings_dict = {k: v for k, v in settings.items() if k != 'type'}
+            settings_obj = settings_type(**settings_dict)
+
+            # Create instance with settings object
+            if kwargs and can_accept_kwargs(cls.__init__, kwargs):
+                return cls(settings_obj, **kwargs), settings
+            else:
+                return cls(settings_obj), settings
         else:
-            return cls(settings), settings
+            # Original behavior - pass dict directly
+            if kwargs and can_accept_kwargs(cls.__init__, kwargs):
+                return cls(settings, **kwargs), settings
+            else:
+                return cls(settings), settings
 
 
 def set_defaults(settings: Dict[str, Any]) -> Dict[str, Any]:

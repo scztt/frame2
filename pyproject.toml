@@ -14,6 +14,8 @@ dependencies = [
     "schedule>=1.2.2",
     "python-osc>=1.9.3",
     "python-multipart>=0.0.20",
+    "ansible-runner>=2.4.0",
+    "pyyaml>=6.0.2",
 ]
 readme = "README.md"
 license = { text = "MIT" }

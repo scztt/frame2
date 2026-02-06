@@ -1,0 +1,20 @@
+---
+# Handler for defaults type
+# Uses community.general.osx_defaults to set macOS preferences
+
+- name: "Set macOS defaults"
+  block:
+    - name: Apply defaults settings
+      community.general.osx_defaults:
+        domain: "{{ item.domain }}"
+        key: "{{ item.key }}"
+        type: "{{ item.type }}"
+        value: "{{ item.value }}"
+        state: "{{ item.state | default('present') }}"
+      loop: "{{ step['items'] }}"
+      loop_control:
+        label: "{{ item.domain }}.{{ item.key }}"
+
+    - name: Report defaults applied
+      debug:
+        msg: "Applied {{ step['items'] | length }} defaults setting(s)"

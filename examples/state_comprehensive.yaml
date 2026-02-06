@@ -1,0 +1,50 @@
+# Comprehensive state file demonstrating all handler types
+
+# Install applications
+- type: install_app
+  path: /Applications/Firefox.app
+  install_location: /Applications
+
+# Configure macOS defaults
+- type: defaults
+  items:
+    - domain: com.apple.dock
+      key: autohide
+      type: bool
+      value: true
+    - domain: NSGlobalDomain
+      key: AppleShowAllExtensions
+      type: bool
+      value: true
+    - domain: com.apple.finder
+      key: ShowPathbar
+      type: bool
+      value: true
+
+# Install Homebrew packages
+- type: homebrew
+  packages:
+    - git
+    - node
+    - ffmpeg
+    - imagemagick
+  state: present
+
+# Set up user service with launchd
+- type: launchctl
+  name: com.example.artworkservice
+  program: /usr/local/bin/node
+  args:
+    - /Users/artist/artwork/server.js
+    - --port
+    - "3000"
+  working_directory: /Users/artist/artwork
+  stdout_path: /tmp/artwork.log
+  stderr_path: /tmp/artwork.err
+  environment:
+    NODE_ENV: production
+    PORT: "3000"
+  run_at_load: true
+  keep_alive: true
+  loaded: true
+  started: true

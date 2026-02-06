@@ -1,0 +1,419 @@
+# ============================================================================
+# Comprehensive Frame2 Configuration Example
+# ============================================================================
+# This example demonstrates ALL features of the config system:
+# - Three sections: sources, model, effects
+# - Inline definitions (source/effect within model)
+# - String references for connections (no @ prefix needed)
+# - Multiple source types (shell, tail, screenshot)
+# - Multiple effect types (file_write, shell, sequence, notification)
+# - Renderers for data transformation
+# - Simple and complex model values
+# ============================================================================
+
+# ============================================================================
+# SOURCES SECTION
+# ============================================================================
+# Data producers that feed into the model
+sources:
+  # Shell source with target reference to existing model field
+  cpu_monitor:
+    type: shell
+    command: "top -l 1 | grep 'CPU usage' | awk '{print $3}'"
+    target: "cpu_usage"  # Connects to model.cpu_usage
+    parser: string
+
+  # Shell source with target reference
+  memory_check:
+    type: shell
+    command: "vm_stat | grep 'Pages free' | awk '{print $3}'"
+    target: "memory_free"  # Connects to model.memory_free
+
+  # Shell source with list command (safer for args)
+  git_status:
+    type: shell
+    command: ["git", "status", "--short"]
+    target: "git_changes"
+
+  # Tail source monitoring a log file
+  app_logs:
+    type: tail
+    path: /var/log/app.log
+    lines: 50
+    target: "recent_logs"
+
+  # Screenshot source (macOS)
+  desktop_capture:
+    type: screenshot
+    x: 0
+    y: 0
+    width: 1920
+    height: 1080
+    sudo: false
+    target: "screenshot"
+
+  # OSC source listening for control messages
+  osc_volume:
+    type: osc
+    port: 8000
+    address: "/control/volume"
+    ip: "0.0.0.0"
+    value_index: 0  # Extract first value
+    target: "osc_volume_value"
+
+# ============================================================================
+# MODEL SECTION
+# ============================================================================
+# Reactive state with inline sources/effects and string references
+model:
+  # -------------------------------------------------------------------------
+  # Simple values (no dict wrapper)
+  # -------------------------------------------------------------------------
+  app_name: "SystemMonitor"
+  version: "1.0.0"
+  port: 8080
+  debug_mode: false
+  tags: ["production", "monitoring", "v1"]
+
+  # -------------------------------------------------------------------------
+  # Basic field with just default value
+  # -------------------------------------------------------------------------
+  uptime:
+    default: 0
+
+  # -------------------------------------------------------------------------
+  # Field with inline source (no separate sources section needed)
+  # -------------------------------------------------------------------------
+  system_time:
+    default: null
+    source:
+      type: shell
+      command: "date '+%Y-%m-%d %H:%M:%S'"
+      parser: string
+    # Inline effect with file_write
+    effect:
+      type: file_write
+      path: /tmp/system_time.txt
+      template: "Current time: {{ system_time }}\n"
+      append: true
+
+  # -------------------------------------------------------------------------
+  # Field with inline source AND string reference to named effect
+  # -------------------------------------------------------------------------
+  disk_usage:
+    default: 0
+    source:
+      type: shell
+      command: "df -h / | tail -1 | awk '{print $5}'"
+      parser: string
+    effect: "disk_alert"  # References effects.disk_alert
+
+  # -------------------------------------------------------------------------
+  # Field connected to sources section source
+  # -------------------------------------------------------------------------
+  cpu_usage:
+    default: "0%"
+    # Connected via sources.cpu_monitor target: "cpu_usage"
+    # Inline effect with template renderer
+    effect:
+      type: file_write
+      path: /tmp/cpu_log.txt
+      template: "{{ value }}"
+      append: true
+      renderer:
+        type: template
+        string: "CPU: {{ cpu_usage }} at {{ timestamp }}"
+
+  # -------------------------------------------------------------------------
+  # Field with string reference to named effect
+  # -------------------------------------------------------------------------
+  memory_status:
+    default: "normal"
+    effect: "memory_logger"  # References effects.memory_logger
+
+  # -------------------------------------------------------------------------
+  # Field with inline effect using format renderer
+  # -------------------------------------------------------------------------
+  error_count:
+    default: 0
+    effect:
+      type: shell
+      command: 'echo "Error count: {}"'
+      renderer:
+        type: format
+        string: "ERRORS: {}"
+
+  # -------------------------------------------------------------------------
+  # Field with inline sequence effect (multiple effects in order)
+  # -------------------------------------------------------------------------
+  alert_message:
+    default: null
+    effect:
+      type: sequence
+      effects:
+        - type: file_write
+          path: /tmp/alert.txt
+          template: "ALERT: {{ alert_message }}\n"
+          append: true
+        - type: shell
+          command: 'echo "Alert logged: {{ alert_message }}"'
+        - type: notification
+          message: "Alert: {{ alert_message }}"
+          targets:
+            - type: console
+
+  # -------------------------------------------------------------------------
+  # Fields connected from sources section
+  # -------------------------------------------------------------------------
+  git_changes:
+    default: ""
+    # Connected via sources.git_status
+
+  memory_free:
+    default: null
+    # Connected via sources.memory_check
+
+  recent_logs:
+    default: []
+    # Connected via sources.app_logs
+    effect: "log_analyzer"
+
+  screenshot:
+    default: null
+    # Connected via sources.desktop_capture
+    effect:
+      type: file_write
+      path: /tmp/screenshot_meta.json
+      template: '{"captured_at": "{{ timestamp }}", "size": "{{ screenshot.size }}"}'
+
+  # -------------------------------------------------------------------------
+  # OSC control values
+  # -------------------------------------------------------------------------
+  osc_volume_value:
+    default: 0.5
+    # Connected via sources.osc_volume
+    effect:
+      type: file_write
+      path: /tmp/osc_volume.txt
+      template: "Volume: {{ osc_volume_value }}\n"
+
+  # -------------------------------------------------------------------------
+  # Complex nested structure
+  # -------------------------------------------------------------------------
+  system_stats:
+    default:
+      cpu: 0
+      memory: 0
+      disk: 0
+      network: "up"
+    effect:
+      type: file_write
+      path: /tmp/system_stats.json
+      template: |
+        {
+          "cpu": {{ system_stats.cpu }},
+          "memory": {{ system_stats.memory }},
+          "disk": {{ system_stats.disk }},
+          "network": "{{ system_stats.network }}",
+          "timestamp": "{{ timestamp }}"
+        }
+
+  # -------------------------------------------------------------------------
+  # Field with multiple inline effects via sequence
+  # -------------------------------------------------------------------------
+  critical_event:
+    default: null
+    effect:
+      type: sequence
+      renderer:
+        type: template
+        string: "CRITICAL: {{ critical_event }} at {{ timestamp }}"
+      effects:
+        - type: file_write
+          path: /var/log/critical.log
+          template: "{{ value }}\n"
+          append: true
+        - type: shell
+          command: 'echo "{{ value }}" | mail -s "Critical Alert" admin@example.com'
+        - type: notification
+          message: "{{ value }}"
+          targets:
+            - type: console
+
+  # -------------------------------------------------------------------------
+  # Field demonstrating renderer pipeline
+  # -------------------------------------------------------------------------
+  temperature:
+    default: 20.5
+    effect:
+      type: file_write
+      path: /tmp/temperature.txt
+      template: "{{ value }}"
+      renderer:
+        type: format
+        string: "Temperature: {:.1f}°C"
+
+# ============================================================================
+# EFFECTS SECTION
+# ============================================================================
+# Named effects that can be referenced from model via name
+effects:
+  # -------------------------------------------------------------------------
+  # Basic file write effect with string reference source
+  # -------------------------------------------------------------------------
+  disk_alert:
+    type: file_write
+    path: /tmp/disk_alerts.log
+    template: "Disk usage: {{ disk_usage }} at {{ timestamp }}\n"
+    append: true
+    source: "disk_usage"  # Subscribes to model.disk_usage changes
+
+  # -------------------------------------------------------------------------
+  # Effect with template renderer
+  # -------------------------------------------------------------------------
+  memory_logger:
+    type: file_write
+    path: /tmp/memory.log
+    template: "{{ value }}"
+    append: true
+    renderer:
+      type: template
+      string: "Memory status: {{ memory_status }} | Free: {{ memory_free }}"
+    source: "memory_status"
+
+  # -------------------------------------------------------------------------
+  # Shell effect with format renderer
+  # -------------------------------------------------------------------------
+  status_notifier:
+    type: shell
+    command: 'osascript -e "display notification \"{}\" with title \"System Monitor\""'
+    renderer:
+      type: format
+      string: "Status: {}"
+    source: "memory_status"
+
+  # -------------------------------------------------------------------------
+  # Log analyzer effect
+  # -------------------------------------------------------------------------
+  log_analyzer:
+    type: sequence
+    effects:
+      - type: file_write
+        path: /tmp/log_summary.txt
+        template: "Log entries: {{ recent_logs | length }}\n"
+      - type: shell
+        command: 'echo "Analyzed {{ recent_logs | length }} log entries"'
+    source: "recent_logs"
+
+  # -------------------------------------------------------------------------
+  # Notification effect with multiple targets
+  # -------------------------------------------------------------------------
+  critical_notifier:
+    type: notification
+    message: "Critical: {{ critical_event }}"
+    targets:
+      - type: console
+    renderer:
+      type: template
+      string: "🚨 {{ critical_event }} 🚨"
+    source: "critical_event"
+
+  # -------------------------------------------------------------------------
+  # OSC effect for external integration
+  # -------------------------------------------------------------------------
+  osc_bridge:
+    type: osc
+    address: "127.0.0.1"
+    port: 8000
+    path: "/system/status"
+    renderer:
+      type: format
+      string: "cpu:{} mem:{}"
+    source: "cpu_usage"
+
+  # -------------------------------------------------------------------------
+  # Multi-stage pipeline effect
+  # -------------------------------------------------------------------------
+  backup_pipeline:
+    type: sequence
+    effects:
+      # Stage 1: Create backup
+      - type: shell
+        command: "tar -czf /tmp/backup.tar.gz /var/data"
+      # Stage 2: Log backup
+      - type: file_write
+        path: /var/log/backups.log
+        template: "Backup created at {{ timestamp }}\n"
+        append: true
+      # Stage 3: Notify completion
+      - type: shell
+        command: 'echo "Backup complete"'
+    source: "system_time"
+
+  # -------------------------------------------------------------------------
+  # Conditional effect using renderer to transform data
+  # -------------------------------------------------------------------------
+  high_cpu_alert:
+    type: file_write
+    path: /tmp/high_cpu_alerts.log
+    template: "{{ value }}\n"
+    append: true
+    renderer:
+      type: template
+      string: |
+        HIGH CPU ALERT
+        Usage: {{ cpu_usage }}
+        Time: {{ timestamp }}
+        Action: investigate
+    source: "cpu_usage"
+
+# ============================================================================
+# USAGE NOTES
+# ============================================================================
+# 1. Load this config with:
+#    import yaml
+#    from frame.config import load_config
+#
+#    with open('example_config_new.yaml') as f:
+#        config = yaml.safe_load(f)
+#    model = load_config(config)
+#
+# 2. String References:
+#    - In sources: target: "field" connects to model.field
+#    - In model: effect: "name" references effects.name
+#    - In effects: source: "field" subscribes to model.field
+#
+# 3. Inline Definitions:
+#    - source: {...} in model creates fieldName(source)
+#    - effect: {...} in model creates fieldName(effect)
+#    - Inline definitions cannot have target/source fields (conflict)
+#
+# 4. Renderers:
+#    - format: Uses Python .format() with {} placeholders
+#    - template: Uses Jinja2 with {{ variable }} syntax
+#    - Other: string, json, log, status, image
+#
+# 5. Source Types:
+#    - shell: Run commands (string or list format)
+#    - tail: Monitor log files
+#    - screenshot: Capture screen regions
+#    - osc: Listen for OSC messages on UDP port
+#
+# 6. Effect Types:
+#    - file_write: Write files with templates
+#    - shell: Execute commands
+#    - sequence: Chain multiple effects
+#    - notification: Send notifications
+#    - osc: Send OSC messages
+#
+# 7. Execution:
+#    - Sources: Call source.run() to trigger
+#    - Model: Call model.emit(PropertyAction(...)) to update
+#    - Effects: Automatically triggered on state changes
+#
+# 8. Best Practices:
+#    - Use inline for simple, field-specific sources/effects
+#    - Use named sections for reusable, shared components
+#    - Use string references for explicit connections
+#    - Use renderers for data transformation before effects
+#    - Use sequence effects for multi-stage operations

@@ -56,21 +56,8 @@ def ordered_yaml_load(stream):
 
 
 app = FastAPI()
-
-# Load config from path specified in env var or use default
-config_path = os.environ.get("FRAME_CONFIG_PATH", "src/frame/examples/example_config.yaml")
-logger.info(f"📋 Loading config from: {config_path}")
-logger.info(f"   FRAME_CONFIG_PATH env var: {os.environ.get('FRAME_CONFIG_PATH', 'NOT SET')}")
-
-try:
-    config = Config(ordered_yaml_load(open(config_path)))
-    logger.info(f"✅ Config loaded successfully from {config_path}")
-except FileNotFoundError:
-    logger.error(f"❌ Config file not found: {config_path}")
-    raise
-except Exception as e:
-    logger.error(f"❌ Error loading config: {e}")
-    raise
+config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
+config = Config(ordered_yaml_load(open(config_path)))
 
 
 # --- Login Page ---

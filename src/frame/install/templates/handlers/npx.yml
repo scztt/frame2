@@ -1,0 +1,24 @@
+# Handler for npx type
+# Runs an npx package, installing it automatically if needed
+#
+# Requires node/npm to be installed (e.g., via homebrew)
+dependencies:
+  - homebrew
+---
+- name: Ensure node is installed via Homebrew
+  community.general.homebrew:
+    name: node
+    state: present
+
+- name: "Run npx package: {{ step.package }}"
+  shell: "npx {{ step.package }}{% if step.args is defined and step.args is string %} {{ step.args }}{% endif %}"
+  args:
+    chdir: "{{ step.working_directory | default(omit) }}"
+  environment: "{{ step.environment | default({}) }}"
+  register: npx_result
+  changed_when: false
+
+- name: Report npx output
+  debug:
+    msg: "{{ npx_result.stdout if npx_result.stdout is defined and npx_result.stdout else 'npx completed' }}"
+  when: step.show_output | default(false)

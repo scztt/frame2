@@ -1,0 +1,189 @@
+---
+# Handler for install_app type
+# Installs .app bundles from local path or remote URL (DMG/ZIP)
+#
+# Local path:
+#   path: /path/to/App.app
+#
+# Remote URL:
+#   remote:
+#     url: https://example.com/App.dmg
+#     sha256: abc123...
+
+# ==========================================
+# LOCAL PATH (step.path is defined)
+# ==========================================
+- name: "Install app: {{ step.path if step.path is defined else '' }}"
+  block:
+    - name: Resolve source path
+      set_fact:
+        source_path: "{{ step.path }}"
+        target_location: "{{ step.install_location | default('/Applications') }}"
+
+    - name: Get app name from path
+      set_fact:
+        app_name: "{{ source_path | basename }}"
+
+    - name: Check if target requires sudo
+      set_fact:
+        needs_sudo: "{{ target_location.startswith('/Applications') or target_location.startswith('/Library') or target_location.startswith('/usr') or target_location.startswith('/opt') }}"
+
+    - name: Ensure target location exists
+      file:
+        path: "{{ target_location }}"
+        state: directory
+      become: "{{ needs_sudo }}"
+      # Don't set mode - system dirs like /Applications already exist with correct perms
+
+    - name: Sync app bundle to target location
+      ansible.posix.synchronize:
+        src: "{{ source_path }}"
+        dest: "{{ target_location }}/{{ app_name }}"
+        delete: yes
+      become: "{{ needs_sudo }}"
+
+    - name: Remove quarantine attribute
+      command: "xattr -d -r com.apple.quarantine {{ target_location }}/{{ app_name }}"
+      become: "{{ needs_sudo }}"
+      failed_when: false
+      when: ansible_os_family == "Darwin"
+
+    - name: Report installation
+      debug:
+        msg: "Successfully installed {{ app_name }} to {{ target_location }}"
+  when: step.path is defined
+
+# ==========================================
+# REMOTE URL (step.remote is defined)
+# ==========================================
+
+# --- Download artifact (tagged for --artifacts-only) ---
+- name: Ensure resources directory exists
+  file:
+    path: "{{ config.resources_dir }}"
+    state: directory
+    mode: '0755'
+  tags: [artifact]
+  when: step.remote is defined
+
+- name: "Download: {{ step.remote.url | basename }}"
+  ansible.builtin.get_url:
+    url: "{{ step.remote.url }}"
+    dest: "{{ config.resources_dir }}/{{ step.remote.url | basename }}"
+    checksum: "{{ 'sha256:' + step.remote.sha256 if step.remote.sha256 is defined else omit }}"
+  tags: [artifact]
+  when: step.remote is defined
+
+# --- Install from downloaded artifact ---
+- name: "Install app from: {{ step.remote.url | basename }}"
+  block:
+    - name: Set install facts
+      set_fact:
+        downloaded_path: "{{ config.resources_dir }}/{{ step.remote.url | basename }}"
+        target_location: "{{ step.install_location | default('/Applications') }}"
+
+    - name: Check if target requires sudo
+      set_fact:
+        needs_sudo: "{{ target_location.startswith('/Applications') or target_location.startswith('/Library') or target_location.startswith('/usr') or target_location.startswith('/opt') }}"
+
+    - name: Ensure target location exists
+      file:
+        path: "{{ target_location }}"
+        state: directory
+      become: "{{ needs_sudo }}"
+      # Don't set mode - system dirs like /Applications already exist with correct perms
+
+    # --- DMG handling ---
+    - name: Mount DMG image
+      command: "hdiutil attach '{{ downloaded_path }}' -nobrowse -noverify"
+      register: mount_result
+      when: (downloaded_path | lower).endswith('.dmg')
+
+    - name: Get mount point
+      set_fact:
+        mount_point: "{{ mount_result.stdout_lines[-1].split('\t') | last | trim }}"
+      when: (downloaded_path | lower).endswith('.dmg')
+
+    - name: Find .app in mounted volume
+      find:
+        paths: "{{ mount_point }}"
+        patterns: "*.app"
+        file_type: directory
+        recurse: no
+      register: dmg_apps
+      when: (downloaded_path | lower).endswith('.dmg')
+
+    - name: Remove existing app (DMG)
+      file:
+        path: "{{ target_location }}/{{ dmg_apps.files[0].path | basename }}"
+        state: absent
+      become: "{{ needs_sudo }}"
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0
+
+    - name: Copy app from DMG
+      command: "cp -pR '{{ dmg_apps.files[0].path }}' '{{ target_location }}/'"
+      become: "{{ needs_sudo }}"
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0
+
+    - name: Detach DMG
+      command: "hdiutil detach '{{ mount_point }}' -force"
+      when: (downloaded_path | lower).endswith('.dmg') and mount_point is defined
+
+    - name: Remove quarantine (DMG)
+      command: "xattr -d -r com.apple.quarantine '{{ target_location }}/{{ dmg_apps.files[0].path | basename }}'"
+      become: "{{ needs_sudo }}"
+      failed_when: false
+      when: (downloaded_path | lower).endswith('.dmg') and dmg_apps.files | length > 0 and ansible_os_family == 'Darwin'
+
+    # --- ZIP handling ---
+    - name: Create temp extraction directory
+      tempfile:
+        state: directory
+        prefix: frame_extract_
+      register: extract_dir
+      when: (downloaded_path | lower).endswith('.zip')
+
+    - name: Extract ZIP archive
+      ansible.builtin.unarchive:
+        src: "{{ downloaded_path }}"
+        dest: "{{ extract_dir.path }}"
+        remote_src: yes
+      when: (downloaded_path | lower).endswith('.zip')
+
+    - name: Find .app in extracted archive
+      find:
+        paths: "{{ extract_dir.path }}"
+        patterns: "*.app"
+        file_type: directory
+        recurse: yes
+      register: zip_apps
+      when: (downloaded_path | lower).endswith('.zip')
+
+    - name: Remove existing app (ZIP)
+      file:
+        path: "{{ target_location }}/{{ zip_apps.files[0].path | basename }}"
+        state: absent
+      become: "{{ needs_sudo }}"
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0
+
+    - name: Copy app from ZIP
+      command: "cp -pR '{{ zip_apps.files[0].path }}' '{{ target_location }}/'"
+      become: "{{ needs_sudo }}"
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0
+
+    - name: Clean up extraction directory
+      file:
+        path: "{{ extract_dir.path }}"
+        state: absent
+      when: (downloaded_path | lower).endswith('.zip') and extract_dir.path is defined
+
+    - name: Remove quarantine (ZIP)
+      command: "xattr -d -r com.apple.quarantine '{{ target_location }}/{{ zip_apps.files[0].path | basename }}'"
+      become: "{{ needs_sudo }}"
+      failed_when: false
+      when: (downloaded_path | lower).endswith('.zip') and zip_apps.files | length > 0 and ansible_os_family == 'Darwin'
+
+    - name: Report remote installation
+      debug:
+        msg: "Installed app from {{ step.remote.url | basename }} to {{ target_location }}"
+  when: step.remote is defined

@@ -1,0 +1,62 @@
+---
+# Handler for copy type
+# Copies files or directories with permissions
+#
+# Mode can be specified as:
+#   mode: "0755"                          # octal string (legacy)
+#   mode:                                 # readable dict
+#     user: rwx
+#     group: rx
+#     everyone: r
+
+- name: "Copy: {{ step.src }} → {{ step.dest }}"
+  block:
+    - name: Resolve file mode
+      set_fact:
+        resolved_mode: >-
+          {% if step.mode is defined and step.mode is mapping -%}
+          u={{ step.mode.user | default('') | replace('null', '') }},g={{ step.mode.group | default('') | replace('null', '') }},o={{ step.mode.everyone | default('') | replace('null', '') }}
+          {%- elif step.mode is defined -%}
+          {{ step.mode }}
+          {%- else -%}
+          preserve
+          {%- endif %}
+
+    - name: Check if destination requires sudo
+      set_fact:
+        needs_sudo: "{{ step.sudo | default(false) or step.dest.startswith('/Applications') or step.dest.startswith('/Library') or step.dest.startswith('/usr') or step.dest.startswith('/opt') }}"
+
+    - name: Ensure destination directory exists
+      file:
+        path: "{{ step.dest | dirname }}"
+        state: directory
+      become: "{{ needs_sudo }}"
+      when: step.create_dirs | default(true)
+      # Don't set mode - system dirs like /Applications already exist with correct perms
+
+    - name: Sync file or directory
+      ansible.posix.synchronize:
+        src: "{{ step.src }}"
+        dest: "{{ step.dest }}"
+        delete: yes
+      become: "{{ needs_sudo }}"
+
+    - name: Set permissions
+      file:
+        path: "{{ step.dest }}"
+        mode: "{{ resolved_mode }}"
+        owner: "{{ step.owner | default(omit) }}"
+        group: "{{ step.group | default(omit) }}"
+        recurse: "{{ step.recursive_mode | default(false) }}"
+      become: "{{ needs_sudo }}"
+      when: resolved_mode != 'preserve' and not ansible_check_mode
+
+    - name: Remove quarantine attribute (macOS)
+      command: "xattr -d -r com.apple.quarantine {{ step.dest }}"
+      become: "{{ needs_sudo }}"
+      failed_when: false
+      when: (ansible_os_family == "Darwin") and (step.remove_quarantine | default(false))
+
+    - name: Report completion
+      debug:
+        msg: "Copied {{ step.src }} to {{ step.dest }}"

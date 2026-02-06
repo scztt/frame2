@@ -1,0 +1,23 @@
+# Example state file with macOS defaults configuration
+# Demonstrates both install_app and defaults types
+
+- type: defaults
+  items:
+    - domain: com.apple.Safari
+      key: IncludeInternalDebugMenu
+      type: bool
+      value: true
+
+    - domain: NSGlobalDomain
+      key: AppleShowAllExtensions
+      type: bool
+      value: true
+
+    - domain: com.apple.dock
+      key: autohide
+      type: bool
+      value: true
+
+- type: install_app
+  path: /tmp/test_frame_install/TestApp.app
+  install_location: /tmp/test_frame_install/installed

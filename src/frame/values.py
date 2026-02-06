@@ -127,6 +127,19 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
             return ref
 
 
+class FileGetter(ValueBase, name="file"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+        self.path = settings["path"]
+        self.parser, _ = make_parser(settings.get("parser", "string"))
+
+    async def get(self):
+        with open(self.path, "r") as f:
+            content = f.read().strip()
+        return self.parser(content)
+
+
 class Tail(ValueBase, name="tail"):
     def __init__(self, settings):
         settings["renderer"] = settings.get("renderer", "log")
@@ -147,6 +160,44 @@ class Tail(ValueBase, name="tail"):
             self.mod_time = mod_time
             self.last_value = tail_lines(self.path, self.lines)
 
+        return self.last_value
+
+class FileReader(ValueBase, name="file"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+
+        self.path = Path(settings["path"]).expanduser().absolute()
+        self.mod_time = 0
+        self.last_value = ""
+
+    async def get(self):
+        mod_time = os.path.getmtime(self.path)
+
+        if mod_time > self.mod_time:
+            self.mod_time = mod_time
+            with open(self.path, "r") as f:
+                self.last_value = f.read();
+    
+        return self.last_value
+
+class FileReader(ValueBase, name="file"):
+    def __init__(self, settings):
+        settings["renderer"] = settings.get("renderer", "string")
+        super().__init__(settings)
+
+        self.path = Path(settings["path"]).expanduser().absolute()
+        self.mod_time = 0
+        self.last_value = ""
+
+    async def get(self):
+        mod_time = os.path.getmtime(self.path)
+
+        if mod_time > self.mod_time:
+            self.mod_time = mod_time
+            with open(self.path, "r") as f:
+                self.last_value = f.read();
+    
         return self.last_value
 
 

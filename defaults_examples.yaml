@@ -1,0 +1,144 @@
+# Examples of macOS defaults setup configurations
+
+setup:
+  dock_preferences:
+    type: defaults
+    entries:
+      # Boolean values
+      - domain: "com.apple.dock"
+        key: "autohide"
+        value: true
+        type: "bool"
+      - domain: "com.apple.dock"
+        key: "minimize-to-application"
+        value: false
+        type: "bool"
+      
+      # Integer values  
+      - domain: "com.apple.dock"
+        key: "tilesize"
+        value: 48
+        type: "int"
+      - domain: "com.apple.dock"
+        key: "autohide-delay"
+        value: 0
+        type: "int"
+        
+      # Float values
+      - domain: "com.apple.dock"
+        key: "autohide-time-modifier"
+        value: 0.5
+        type: "float"
+        
+      # String values
+      - domain: "com.apple.dock"
+        key: "orientation"
+        value: "bottom"
+        type: "string"
+        
+      # Array values
+      - domain: "com.apple.dock"
+        key: "persistent-apps"
+        value: []  # Empty array to clear dock
+        type: "array"
+    depends: []
+
+  finder_preferences:
+    type: defaults
+    entries:
+      # Show hidden files
+      - domain: "com.apple.finder"
+        key: "AppleShowAllFiles"
+        value: true
+        type: "bool"
+      
+      # Show file extensions
+      - domain: "NSGlobalDomain"
+        key: "AppleShowAllExtensions"
+        value: true
+        type: "bool"
+        
+      # Default view style
+      - domain: "com.apple.finder"
+        key: "FXPreferredViewStyle"
+        value: "Nlsv"  # List view
+        type: "string"
+        
+      # New window target
+      - domain: "com.apple.finder"
+        key: "NewWindowTargetPath"
+        value: "file:///Users/"
+        type: "string"
+    depends: []
+
+  system_preferences:
+    type: defaults
+    entries:
+      # Scroll bars
+      - domain: "NSGlobalDomain"
+        key: "AppleShowScrollBars"
+        value: "Always"
+        type: "string"
+        
+      # Menu bar clock format
+      - domain: "com.apple.menuextra.clock"
+        key: "DateFormat"
+        value: "EEE MMM d  h:mm:ss a"
+        type: "string"
+        
+      # Disable automatic capitalization
+      - domain: "NSGlobalDomain"  
+        key: "NSAutomaticCapitalizationEnabled"
+        value: false
+        type: "bool"
+        
+      # Disable automatic period substitution
+      - domain: "NSGlobalDomain"
+        key: "NSAutomaticPeriodSubstitutionEnabled" 
+        value: false
+        type: "bool"
+    depends: []
+
+  trackpad_preferences:
+    type: defaults
+    entries:
+      # Enable tap to click
+      - domain: "com.apple.driver.AppleBluetoothMultitouch.trackpad"
+        key: "Clicking"
+        value: true
+        type: "bool"
+        
+      # Tracking speed
+      - domain: "NSGlobalDomain"
+        key: "com.apple.trackpad.scaling"
+        value: 2
+        type: "int"
+        
+      # Secondary click (right click)
+      - domain: "com.apple.driver.AppleBluetoothMultitouch.trackpad"
+        key: "TrackpadRightClick"
+        value: true  
+        type: "bool"
+    depends: []
+
+  screenshot_preferences:
+    type: defaults
+    entries:
+      # Change screenshot location
+      - domain: "com.apple.screencapture"
+        key: "location"
+        value: "~/Desktop/Screenshots"
+        type: "string"
+        
+      # Disable screenshot thumbnail
+      - domain: "com.apple.screencapture"
+        key: "show-thumbnail"
+        value: false
+        type: "bool"
+        
+      # Change screenshot format to PNG
+      - domain: "com.apple.screencapture"
+        key: "type"
+        value: "png"
+        type: "string"
+    depends: []
