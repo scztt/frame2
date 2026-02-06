@@ -34,8 +34,12 @@
 
     - name: Set plist destination
       set_fact:
-        plist_dir: "{{ '/Library/LaunchDaemons' if is_system else ansible_env.HOME + '/Library/LaunchAgents' }}"
-        plist_path: "{{ '/Library/LaunchDaemons/' + service_name + '.plist' if is_system else ansible_env.HOME + '/Library/LaunchAgents/' + service_name + '.plist' }}"
+        # Allow override via step.plist_dir for testing
+        plist_dir: "{{ step.plist_dir | default('/Library/LaunchDaemons' if is_system else ansible_env.HOME + '/Library/LaunchAgents') }}"
+
+    - name: Set plist path
+      set_fact:
+        plist_path: "{{ plist_dir }}/{{ service_name }}.plist"
 
     - name: Ensure service directory exists
       file:
