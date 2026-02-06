@@ -154,7 +154,6 @@ steps:
       - run
       - frame
       - --help
-    working_directory: "{{ config.peacecore_root }}/frame2"
     show_output: true
 
   # ============================================================================
