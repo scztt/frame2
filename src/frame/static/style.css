@@ -480,3 +480,203 @@ input[type="password"] {
     font-size: 0.8rem;
     margin-left: 0.5rem;
 }
+
+/* ==========================================
+   Install UI Styles (/install page)
+   ========================================== */
+
+body.install-page {
+    background: #1a1a2e;
+    color: #eee;
+}
+
+.install-page .config-path {
+    background: #16213e;
+    padding: 10px 16px;
+    border-radius: 6px;
+    margin-bottom: 20px;
+    font-size: 13px;
+}
+
+.install-page .config-path .label {
+    color: #888;
+    margin-right: 8px;
+}
+
+.install-page .config-path .path {
+    font-family: monospace;
+}
+
+.install-page .controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.install-page button {
+    background: #0f3460;
+    color: #eee;
+    padding: 10px 20px;
+}
+
+.install-page button:hover:not(:disabled) {
+    background: #1a4980;
+}
+
+.install-page button.primary {
+    background: #4ade80;
+    color: #000;
+}
+
+.install-page button.loading {
+    background: #fbbf24;
+    color: #000;
+}
+
+.install-page button.loading::after {
+    content: '';
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    margin-left: 8px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    vertical-align: middle;
+}
+
+.install-page .status-banner {
+    padding: 10px;
+    border-radius: 6px;
+    margin-bottom: 15px;
+    font-size: 14px;
+}
+
+.install-page .status-banner.checking { background: #0f3460; }
+.install-page .status-banner.installing { background: #fbbf24; color: #000; }
+.install-page .status-banner.error { background: #f87171; color: #000; }
+
+/* Steps list container */
+.install-page .steps {
+    background: #16213e;
+    border-radius: 8px;
+}
+
+.install-page .steps .empty {
+    padding: 40px;
+    text-align: center;
+    color: #888;
+}
+
+/* Step item (details/summary) */
+.install-page details.step {
+    border-bottom: 1px solid #0f3460;
+}
+
+.install-page details.step:last-child {
+    border-bottom: none;
+}
+
+.install-page details.step summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.install-page details.step summary::-webkit-details-marker {
+    display: none;
+}
+
+.install-page details.step[open] summary {
+    border-bottom: 1px solid #0f3460;
+}
+
+.install-page .step-icon {
+    width: 20px;
+    text-align: center;
+    font-size: 16px;
+}
+
+.install-page .step-name {
+    flex: 1;
+    font-size: 14px;
+}
+
+.install-page .step-type {
+    font-size: 12px;
+    color: #888;
+    background: #0f3460;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.install-page .step-error {
+    font-size: 12px;
+    color: #f87171;
+    margin-left: auto;
+}
+
+/* Step status colors */
+.install-page .status-pending .step-icon { color: #64748b; }
+.install-page .status-checking .step-icon,
+.install-page .status-installing .step-icon {
+    color: #fbbf24;
+    animation: spin 1s linear infinite;
+}
+.install-page .status-ok .step-icon { color: #4ade80; }
+.install-page .status-changed .step-icon { color: #fbbf24; }
+.install-page .status-failed .step-icon { color: #f87171; }
+.install-page .status-complete .step-icon { color: #4ade80; }
+.install-page .status-skipped .step-icon { color: #888; }
+
+/* Step details panel */
+.install-page .step-details {
+    padding: 12px 16px;
+    background: #111;
+    font-size: 13px;
+}
+
+.install-page .detail-section {
+    margin-bottom: 12px;
+}
+
+.install-page .detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.install-page .detail-error {
+    color: #f87171;
+}
+
+.install-page .task-item {
+    padding: 2px 0;
+    font-family: monospace;
+    font-size: 12px;
+}
+
+.install-page .task-ok { color: #4ade80; }
+.install-page .task-changed { color: #fbbf24; }
+.install-page .task-failed { color: #f87171; }
+.install-page .task-skipped { color: #888; }
+
+.install-page .task-output {
+    color: #60a5fa;
+    font-size: 11px;
+    margin-left: 4px;
+}
+
+.install-page .detail-yaml,
+.install-page .detail-output {
+    background: #000;
+    padding: 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 11px;
+    white-space: pre;
+    overflow: auto;
+    margin-top: 6px;
+}

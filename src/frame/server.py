@@ -1,3 +1,4 @@
+import getpass
 import os
 import shutil
 import subprocess
@@ -45,14 +46,17 @@ def _generate_plist(
     cwd = os.getcwd()
     run_at_load_str = "true" if run_at_load else "false"
 
-    # Build environment section if provided
-    env_xml = ""
+    # Always include PATH so tools like ansible-playbook are found
+    # Merge with any user-provided environment variables
+    env_vars = {"PATH": os.environ.get("PATH", "/usr/local/bin:/usr/bin:/bin")}
     if environment:
-        env_entries = "\n".join(
-            f"      <key>{k}</key>\n      <string>{v}</string>"
-            for k, v in environment.items()
-        )
-        env_xml = f"""
+        env_vars.update(environment)
+
+    env_entries = "\n".join(
+        f"      <key>{k}</key>\n      <string>{v}</string>"
+        for k, v in env_vars.items()
+    )
+    env_xml = f"""
   <key>EnvironmentVariables</key>
   <dict>
 {env_entries}
@@ -126,12 +130,16 @@ def run_server(
     host: str = typer.Option("0.0.0.0", help="Host to bind to"),
     port: int = typer.Option(8000, help="Port to bind to"),
     config: Optional[Path] = typer.Option(None, "--config", help="Path to config yaml"),
+    ask_become_pass: bool = typer.Option(False, "-K", "--ask-become-pass", help="Prompt for sudo password (for install tasks)"),
     open: bool = typer.Option(False, "--open", help="Open in browser after starting"),
 ):
     """Run the FastAPI server in the foreground (used by launchd)."""
     if config:
         os.environ["FRAME_CONFIG"] = str(config)
         typer.echo(f"Config: {config}")
+    if ask_become_pass:
+        become_pass = getpass.getpass("BECOME password: ")
+        os.environ["FRAME_BECOME_PASS"] = become_pass
     if open:
         _open_browser(host, port)
     uvicorn.run(
@@ -152,11 +160,12 @@ def start(
     port: int = typer.Option(8000, help="Port to bind to"),
     log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log-path", help="Log file path"),
     config: Optional[Path] = typer.Option(None, help="Path to config yaml"),
-    label: str = typer.Option(DEFAULT_SERVICE_NAME, "--label", help="Service label for launchd"),
     env: Optional[List[str]] = typer.Option(None, "--env", "-e", help="Environment variables (KEY=VALUE)"),
+    ask_become_pass: bool = typer.Option(False, "-K", "--ask-become-pass", help="Prompt for sudo password (for install tasks)"),
     open: bool = typer.Option(False, "--open", help="Open in browser after starting"),
 ):
     """Start the server as a background service via launchd."""
+    label = DEFAULT_SERVICE_NAME
     loaded, _ = _is_loaded(label)
     if loaded:
         typer.echo("Server already running, restarting...")
@@ -168,9 +177,8 @@ def start(
         log_path.unlink()
 
     # Parse environment variables from KEY=VALUE format
-    environment = None
+    environment = {}
     if env:
-        environment = {}
         for item in env:
             if '=' in item:
                 key, value = item.split('=', 1)
@@ -178,7 +186,12 @@ def start(
             else:
                 typer.echo(f"Warning: ignoring invalid env format: {item} (expected KEY=VALUE)", err=True)
 
-    plist_content = _generate_plist(host, port, log_path, config, label=label, environment=environment)
+    # Prompt for become password if -K flag
+    if ask_become_pass:
+        become_pass = getpass.getpass("BECOME password: ")
+        environment['FRAME_BECOME_PASS'] = become_pass
+
+    plist_content = _generate_plist(host, port, log_path, config, label=label, environment=environment if environment else None)
     plist_path = _get_plist_path(label)
     plist_path.write_text(plist_content)
 
@@ -190,20 +203,16 @@ def start(
     typer.echo(f"Server started on {host}:{port}")
     if config:
         typer.echo(f"  Config: {config}")
-    typer.echo(f"  Label: {label}")
     typer.echo(f"  Log: {log_path}")
-    typer.echo(f"  Plist: {plist_path}")
 
     if open:
         _open_browser(host, port)
 
 
 @server_app.command()
-def stop(
-    label: str = typer.Option(DEFAULT_SERVICE_NAME, "--label", help="Service label"),
-):
+def stop():
     """Stop the background server."""
-    was_running = _stop_service(label)
+    was_running = _stop_service(DEFAULT_SERVICE_NAME)
     if was_running:
         typer.echo("Server stopped.")
     else:
@@ -211,10 +220,9 @@ def stop(
 
 
 @server_app.command()
-def restart(
-    label: str = typer.Option(DEFAULT_SERVICE_NAME, "--label", help="Service label"),
-):
+def restart():
     """Restart the background server (unload + load existing plist)."""
+    label = DEFAULT_SERVICE_NAME
     plist_path = _get_plist_path(label)
     if not plist_path.exists():
         typer.echo("No plist found. Use 'frame server start' first.", err=True)
@@ -228,10 +236,9 @@ def restart(
 
 
 @server_app.command("status")
-def server_status(
-    label: str = typer.Option(DEFAULT_SERVICE_NAME, "--label", help="Service label"),
-):
+def server_status():
     """Show server status."""
+    label = DEFAULT_SERVICE_NAME
     loaded, pid = _is_loaded(label)
     plist_path = _get_plist_path(label)
 
@@ -240,10 +247,9 @@ def server_status(
     else:
         typer.echo("Server: stopped")
 
-    typer.echo(f"  Label: {label}")
     if plist_path.exists():
         typer.echo(f"  Plist: {plist_path}")
-    typer.echo(f"  Default log: {DEFAULT_LOG_PATH}")
+    typer.echo(f"  Log: {DEFAULT_LOG_PATH}")
 
 
 @server_app.command("log")

@@ -1,6 +1,8 @@
+from contextlib import asynccontextmanager
 from functools import wraps
 import hashlib
 import json
+import signal
 from typing import Any, Dict
 from uuid import uuid4
 from fastapi import FastAPI, Form, Request, Response
@@ -14,7 +16,7 @@ from frame.images import image_repo
 from collections import OrderedDict
 
 from frame.renderers import render_action, render_simple_value
-from frame.install_ui import router as install_router, set_install_state_path
+from frame.install_ui import router as install_router, set_install_state_path, set_shutdown_event
 from fastapi.responses import FileResponse
 import os
 from fastapi import Body
@@ -24,6 +26,26 @@ from datetime import datetime, timedelta
 import secrets
 from pydantic import BaseModel
 
+
+# Shared shutdown event for SSE connections
+_shutdown_event = asyncio.Event()
+
+
+def get_shutdown_event() -> asyncio.Event:
+    """Get the shutdown event for SSE connections."""
+    return _shutdown_event
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for startup/shutdown."""
+    # Startup
+    set_shutdown_event(_shutdown_event)
+    yield
+    # Shutdown - signal all SSE connections to close
+    _shutdown_event.set()
+    # Give connections a moment to close gracefully
+    await asyncio.sleep(0.1)
 
 
 TOKENS = set()
@@ -52,7 +74,7 @@ def ordered_yaml_load(stream):
     return yaml.load(stream, OrderedLoader)
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 app.include_router(install_router)
 
 config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
@@ -146,8 +168,14 @@ def make_endpoints():
 
         @app.get("/updates")
         async def get_rendered_update_stream(_=Depends(verify_token_fail)):
+            async def stream_with_shutdown():
+                async for event in config.get_rendered_update_stream():
+                    if _shutdown_event.is_set():
+                        return
+                    yield event
+
             return StreamingResponse(
-                config.get_rendered_update_stream(),
+                stream_with_shutdown(),
                 media_type="text/event-stream",
             )
 
@@ -182,16 +210,12 @@ endpoints_future, actions_future = make_endpoints()
 
 
 @app.get("/style.css")
-async def get_css(
-    _=Depends(verify_token_redirect),
-):
+async def get_css():
     return FileResponse("src/frame/static/style.css", media_type="text/css")
 
 
 @app.get("/script.js")
-async def get_script(
-    _=Depends(verify_token_redirect),
-):
+async def get_script():
     return FileResponse("src/frame/static/script.js", media_type="text/javascript")
 
 
