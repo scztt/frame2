@@ -1,0 +1,63 @@
+# Handler for restart type
+# Manages system restart/reboot (requires confirmation or force flag)
+#
+# Usage:
+#   # Schedule a restart (won't actually restart during ansible run)
+#   - type: restart
+#     when: "{{ some_condition }}"
+#
+#   # Delayed restart (gives time for ansible to complete)
+#   - type: restart
+#     delay: 60                    # Seconds to wait before restart
+#
+#   # Immediate restart (use with caution - will interrupt ansible!)
+#   - type: restart
+#     immediate: true
+#
+#   # Just notify that restart is needed (no action)
+#   - type: restart
+#     notify_only: true
+#     message: "Restart required to apply kernel extensions"
+---
+- name: Notify restart required
+  debug:
+    msg: "{{ step.message | default('System restart is required to complete installation') }}"
+  when: step.notify_only | default(false)
+
+- name: Schedule delayed restart
+  shell: |
+    DELAY="{{ step.delay | default(60) }}"
+    echo "System will restart in ${DELAY} seconds..."
+    sudo shutdown -r +$(( DELAY / 60 )) "Scheduled restart by Frame installer" &
+  when: step.delay is defined and not (step.notify_only | default(false))
+  become: yes
+
+- name: Perform immediate restart
+  command: shutdown -r now "Immediate restart by Frame installer"
+  when: step.immediate | default(false) and not (step.notify_only | default(false))
+  become: yes
+  async: 0
+  poll: 0
+  ignore_errors: yes
+
+- name: Create restart marker file
+  copy:
+    content: |
+      restart_requested: true
+      timestamp: "{{ ansible_date_time.iso8601 }}"
+      reason: "{{ step.message | default('Frame installation') }}"
+    dest: "/tmp/frame_restart_pending"
+  when: not (step.immediate | default(false)) and not (step.notify_only | default(false)) and step.delay is not defined
+
+- name: Report restart status
+  debug:
+    msg: >-
+      {% if step.notify_only | default(false) %}
+      Restart notification recorded
+      {% elif step.immediate | default(false) %}
+      Immediate restart initiated
+      {% elif step.delay is defined %}
+      Restart scheduled in {{ step.delay }} seconds
+      {% else %}
+      Restart pending - run 'sudo shutdown -r now' when ready
+      {% endif %}

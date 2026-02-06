@@ -1,0 +1,65 @@
+# Handler for displayplacer type
+# Configures display resolution, arrangement, and settings using displayplacer
+# https://github.com/jakehilborn/displayplacer
+#
+# Usage:
+#   # Apply a saved configuration string (from `displayplacer list`)
+#   - type: displayplacer
+#     config: "id:xxx res:1920x1080 hz:60 ..."
+#
+#   # Set resolution for a display by name/id
+#   - type: displayplacer
+#     resolution: 1920x1080
+#     display: "Built-in"     # optional, defaults to main display
+#     refresh: 60             # optional refresh rate
+#
+#   # List current display configuration (useful for capturing current state)
+#   - type: displayplacer
+#     list: true
+dependencies:
+  - homebrew
+---
+- name: Ensure displayplacer is installed
+  community.general.homebrew:
+    name: displayplacer
+    state: present
+
+- name: List current display configuration
+  command: displayplacer list
+  register: displayplacer_list
+  changed_when: false
+  when: step.list | default(false)
+
+- name: Show display configuration
+  debug:
+    msg: "{{ displayplacer_list.stdout }}"
+  when: step.list | default(false) and displayplacer_list is defined
+
+- name: Apply display configuration string
+  command: "displayplacer {{ step.config }}"
+  when: step.config is defined
+
+- name: Get current display IDs
+  shell: "displayplacer list | grep 'Persistent screen id:' | head -1 | awk '{print $4}'"
+  register: main_display_id
+  changed_when: false
+  when: step.resolution is defined and step.display is not defined
+
+- name: Find display by name
+  shell: |
+    displayplacer list | grep -B5 "{{ step.display }}" | grep 'Persistent screen id:' | awk '{print $4}'
+  register: named_display_id
+  changed_when: false
+  when: step.resolution is defined and step.display is defined
+
+- name: Set display resolution
+  shell: |
+    DISPLAY_ID="{{ named_display_id.stdout if step.display is defined else main_display_id.stdout }}"
+    REFRESH="{{ step.refresh | default(60) }}"
+    displayplacer "id:${DISPLAY_ID} res:{{ step.resolution }} hz:${REFRESH} scaling:on"
+  when: step.resolution is defined
+
+- name: Report display configuration
+  debug:
+    msg: "Display configuration applied"
+  when: step.config is defined or step.resolution is defined

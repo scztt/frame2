@@ -1,0 +1,52 @@
+# Handler for pmset type
+# Configures macOS power management settings (requires sudo)
+# https://ss64.com/mac/pmset.html
+#
+# Usage:
+#   - type: pmset
+#     settings:
+#       displaysleep: 0      # Never sleep display (0 = never, N = minutes)
+#       disksleep: 0         # Never sleep disk
+#       sleep: 0             # Never sleep system
+#       womp: 1              # Wake on network access
+#       powernap: 0          # Disable Power Nap
+#     power_source: all      # 'all', 'charger' (-c), 'battery' (-b), or 'ups' (-u)
+#
+# Common settings:
+#   displaysleep  - Display sleep timer (minutes, 0=never)
+#   disksleep     - Disk spindown timer (minutes, 0=never)
+#   sleep         - System sleep timer (minutes, 0=never)
+#   womp          - Wake on Magic Packet (0=off, 1=on)
+#   ring          - Wake on modem ring (0=off, 1=on)
+#   powernap      - Power Nap (0=off, 1=on)
+#   proximitywake - Wake for iPhone/Watch proximity (0=off, 1=on)
+#   autorestart   - Auto restart after power failure (0=off, 1=on)
+#   lidwake       - Wake when opening lid (0=off, 1=on)
+#   acwake        - Wake when connecting power adapter (0=off, 1=on)
+---
+- name: Get current power settings
+  command: pmset -g
+  register: current_pmset
+  changed_when: false
+  become: yes
+
+- name: Determine power source flag
+  set_fact:
+    pmset_flag: >-
+      {{ '-a' if (step.power_source | default('all')) == 'all' else
+         '-c' if step.power_source == 'charger' else
+         '-b' if step.power_source == 'battery' else
+         '-u' if step.power_source == 'ups' else '-a' }}
+
+- name: Apply power management settings
+  command: "pmset {{ pmset_flag }} {{ item.key }} {{ item.value }}"
+  loop: "{{ step.settings | dict2items }}"
+  loop_control:
+    label: "{{ item.key }}={{ item.value }}"
+  become: yes
+  register: pmset_result
+  changed_when: true
+
+- name: Report power settings
+  debug:
+    msg: "Power management settings applied ({{ step.settings | length }} settings)"

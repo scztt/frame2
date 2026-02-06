@@ -119,7 +119,13 @@ steps:
     type: install_app
     path: "{{ config.peacecore_root }}/_setup/_tools/googlechrome.dmg"
 
-  # TODO: Chrome Remote Desktop - determine if .app or .pkg format
+  # Chrome Remote Desktop - downloads and installs the host service
+  - name: Install Chrome Remote Desktop
+    type: install_app
+    remote:
+      url: https://dl.google.com/chrome-remote-desktop/chromeremotedesktop.dmg
+    # Note: After installation, open Chrome and visit remotedesktop.google.com/access
+    # to complete setup and authorize the machine
 
   # TODO: Grant Full Disk Access to SuperCollider and TouchDesigner (GUI - manual step)
 

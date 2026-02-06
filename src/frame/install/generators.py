@@ -72,19 +72,6 @@ def get_handler_dependencies(handler_name: str) -> List[str]:
     return meta.get("dependencies", [])
 
 
-def get_static_site_yml() -> str:
-    """Return the static canonical site.yml that loads and executes plan.yml."""
-    return load_template("site.yml")
-
-
-def generate_plan_yml(steps: List[Dict[str, Any]], config: Optional[Dict[str, Any]] = None) -> str:
-    """Generate plan.yml containing the installation steps and config from state.yaml."""
-    plan: Dict[str, Any] = {"steps": steps}
-    if config:
-        plan["config"] = config
-    return yaml.dump(plan, default_flow_style=False, sort_keys=False)
-
-
 def generate_ansible_cfg() -> str:
     """Generate ansible.cfg for local execution."""
     return load_template("ansible.cfg")
@@ -152,6 +139,23 @@ def step_label(entry: Dict[str, Any]) -> str:
         return f"Download: {filename}"
     elif t == 'install_pkg':
         return entry['path'].split('/')[-1]
+    elif t == 'desktop':
+        if 'image' in entry:
+            return f"Desktop: {entry['image'].split('/')[-1]}"
+        return "Desktop configuration"
+    elif t == 'displayplacer':
+        if entry.get('list'):
+            return "Display: list configuration"
+        if 'resolution' in entry:
+            return f"Display: {entry['resolution']}"
+        return "Display configuration"
+    elif t == 'pmset':
+        count = len(entry.get('settings', {}))
+        return f"Power: {count} setting(s)"
+    elif t == 'restart':
+        if entry.get('notify_only'):
+            return "Restart notification"
+        return "System restart"
     else:
         return str(t)
 

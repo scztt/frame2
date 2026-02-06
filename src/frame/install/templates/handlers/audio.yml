@@ -128,8 +128,9 @@ dependencies:
   loop: "{{ step.aggregate | default([]) }}"
   loop_control:
     loop_var: agg_entry
+    index_var: agg_idx
     label: "{{ agg_entry.name }}"
-  when: aggregate_exists.results[0].rc != 0 or aggregate_exists.results[0].stdout | length == 0
+  when: aggregate_exists.results[agg_idx].rc != 0 or aggregate_exists.results[agg_idx].stdout | length == 0
 
 - name: Resolve aggregate member device IDs
   shell: |
@@ -141,8 +142,9 @@ dependencies:
   loop: "{{ step.aggregate | default([]) }}"
   loop_control:
     loop_var: agg_entry
+    index_var: agg_idx
     label: "{{ agg_entry.name }}"
-  when: aggregate_exists.results[0].rc != 0 or aggregate_exists.results[0].stdout | length == 0
+  when: aggregate_exists.results[agg_idx].rc != 0 or aggregate_exists.results[agg_idx].stdout | length == 0
 
 - name: Create aggregate devices
   shell: >

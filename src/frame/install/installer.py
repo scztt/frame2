@@ -30,8 +30,80 @@ def check_ansible_installed() -> None:
         raise typer.Exit(1)
 
 
+# Validation schemas for handler types
+# Each schema defines: required fields, one-of requirements, type constraints, nested validation
+HANDLER_SCHEMAS: Dict[str, Dict[str, Any]] = {
+    'install_app': {
+        'one_of': ['path', 'remote'],
+        'nested': {'remote': {'required': ['url'], 'type': dict}},
+    },
+    'defaults': {'required': ['items'], 'types': {'items': list}},
+    'homebrew': {'required': ['packages'], 'types': {'packages': list}},
+    'launchctl': {
+        'one_of': ['src', 'program'],
+        'conditional': {'program': {'required': ['label']}},  # label required if using program
+    },
+    'copy': {'required': ['src', 'dest']},
+    'command': {'required': ['args']},
+    'install_pkg': {'required': ['path']},
+    'systemsetup': {'required': ['items'], 'types': {'items': dict}},
+    'npx': {'required': ['package']},
+    'audio': {'any_of': ['output', 'input', 'system', 'volume', 'aggregate']},
+    'download': {'required': ['url', 'dest']},
+    'desktop': {},  # image path is optional (can clear)
+    'pmset': {'required': ['settings'], 'types': {'settings': dict}},
+    'displayplacer': {'any_of': ['resolution', 'config', 'list']},
+    'restart': {},  # no required fields
+}
+
+
+def _validate_entry(i: int, entry: Dict[str, Any], schema: Dict[str, Any]) -> Optional[str]:
+    """Validate a single entry against its schema. Returns error message or None."""
+    entry_type = entry['type']
+
+    # Check required fields
+    for field in schema.get('required', []):
+        if field not in entry:
+            return f"Entry {i} ({entry_type}) missing '{field}' field"
+
+    # Check one-of requirements (at least one must be present)
+    one_of = schema.get('one_of', [])
+    if one_of and not any(f in entry for f in one_of):
+        return f"Entry {i} ({entry_type}) missing one of: {', '.join(one_of)}"
+
+    # Check any-of requirements (at least one must be present)
+    any_of = schema.get('any_of', [])
+    if any_of and not any(f in entry for f in any_of):
+        return f"Entry {i} ({entry_type}) must specify at least one of: {', '.join(any_of)}"
+
+    # Check type constraints
+    for field, expected_type in schema.get('types', {}).items():
+        if field in entry and not isinstance(entry[field], expected_type):
+            return f"Entry {i} ({entry_type}) '{field}' must be a {expected_type.__name__}"
+
+    # Check nested validation
+    for field, nested_schema in schema.get('nested', {}).items():
+        if field in entry:
+            value = entry[field]
+            expected = nested_schema.get('type')
+            if expected and not isinstance(value, expected):
+                return f"Entry {i} ({entry_type}) '{field}' must be a {expected.__name__}"
+            for req in nested_schema.get('required', []):
+                if req not in value:
+                    return f"Entry {i} ({entry_type}) {field} missing '{req}' field"
+
+    # Check conditional requirements (field X requires field Y)
+    for field, cond_schema in schema.get('conditional', {}).items():
+        if field in entry:
+            for req in cond_schema.get('required', []):
+                if req not in entry:
+                    return f"Entry {i} ({entry_type}) missing '{req}' field (required with '{field}')"
+
+    return None
+
+
 def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
-    """Validate state file entries and raise typer.Exit on errors."""
+    """Validate state file entries against handler schemas."""
     for i, entry in enumerate(state_entries):
         if not isinstance(entry, dict):
             typer.echo(f"❌ Error: Entry {i} is not a dictionary", err=True)
@@ -40,102 +112,32 @@ def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
             typer.echo(f"❌ Error: Entry {i} missing 'type' field", err=True)
             raise typer.Exit(1)
 
-        # Type-specific validation
         entry_type = entry['type']
-
-        if entry_type == 'install_app':
-            has_path = 'path' in entry
-            has_remote = 'remote' in entry
-            if not has_path and not has_remote:
-                typer.echo(f"❌ Error: Entry {i} (install_app) missing 'path' or 'remote' field", err=True)
-                raise typer.Exit(1)
-            if has_remote:
-                if not isinstance(entry['remote'], dict):
-                    typer.echo(f"❌ Error: Entry {i} (install_app) 'remote' must be a dict with 'url'", err=True)
-                    raise typer.Exit(1)
-                if 'url' not in entry['remote']:
-                    typer.echo(f"❌ Error: Entry {i} (install_app) remote missing 'url' field", err=True)
-                    raise typer.Exit(1)
-
-        elif entry_type == 'defaults':
-            if 'items' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (defaults) missing 'items' field", err=True)
-                raise typer.Exit(1)
-            if not isinstance(entry['items'], list):
-                typer.echo(f"❌ Error: Entry {i} (defaults) 'items' must be a list", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'homebrew':
-            if 'packages' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (homebrew) missing 'packages' field", err=True)
-                raise typer.Exit(1)
-            if not isinstance(entry['packages'], list):
-                typer.echo(f"❌ Error: Entry {i} (homebrew) 'packages' must be a list", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'launchctl':
-            has_src = 'src' in entry
-            has_program = 'program' in entry
-            if not has_src and not has_program:
-                typer.echo(f"❌ Error: Entry {i} (launchctl) missing 'src' or 'program' field", err=True)
-                raise typer.Exit(1)
-            if not has_src and 'label' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (launchctl) missing 'label' field (required without 'src')", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'copy':
-            if 'src' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (copy) missing 'src' field", err=True)
-                raise typer.Exit(1)
-            if 'dest' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (copy) missing 'dest' field", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'command':
-            if 'args' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (command) missing 'args' field", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'install_pkg':
-            if 'path' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (install_pkg) missing 'path' field", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'systemsetup':
-            if 'items' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (systemsetup) missing 'items' field", err=True)
-                raise typer.Exit(1)
-            if not isinstance(entry['items'], dict):
-                typer.echo(f"❌ Error: Entry {i} (systemsetup) 'items' must be a dictionary", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'npx':
-            if 'package' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (npx) missing 'package' field", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'audio':
-            has_config = any(k in entry for k in ('output', 'input', 'system', 'volume', 'aggregate'))
-            if not has_config:
-                typer.echo(f"❌ Error: Entry {i} (audio) must specify at least one of: output, input, system, volume, aggregate", err=True)
-                raise typer.Exit(1)
-
-        elif entry_type == 'download':
-            if 'url' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (download) missing 'url' field", err=True)
-                raise typer.Exit(1)
-            if 'dest' not in entry:
-                typer.echo(f"❌ Error: Entry {i} (download) missing 'dest' field", err=True)
-                raise typer.Exit(1)
+        schema = HANDLER_SCHEMAS.get(entry_type, {})
+        error = _validate_entry(i, entry, schema)
+        if error:
+            typer.echo(f"❌ Error: {error}", err=True)
+            raise typer.Exit(1)
 
 
 def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
-    """Extract unique handler types needed from state entries, including dependencies."""
+    """Extract unique handler types needed from state entries, including transitive dependencies."""
     handlers = {entry['type'] for entry in state_entries}
-    # Resolve dependencies declared in handler metadata
+
+    # Recursively resolve dependencies
+    def resolve_deps(handler: str, visited: set) -> set:
+        if handler in visited:
+            return set()
+        visited.add(handler)
+        deps = set(get_handler_dependencies(handler))
+        for dep in list(deps):
+            deps.update(resolve_deps(dep, visited))
+        return deps
+
+    visited: set = set()
     for handler in list(handlers):
-        deps = get_handler_dependencies(handler)
-        handlers.update(deps)
+        handlers.update(resolve_deps(handler, visited))
+
     return handlers
 
 

@@ -1,0 +1,44 @@
+# Handler for desktop type
+# Configures macOS desktop background/wallpaper
+# Uses osascript (built-in) to set desktop picture
+#
+# Usage:
+#   - type: desktop
+#     image: /path/to/wallpaper.jpg           # Set wallpaper for all displays
+#   - type: desktop
+#     image: /path/to/wallpaper.jpg
+#     display: 1                               # Set for specific display (1-indexed)
+#   - type: desktop
+#     color: "#000000"                         # Set solid color (clears image)
+---
+- name: Verify image exists
+  stat:
+    path: "{{ step.image }}"
+  register: desktop_image
+  when: step.image is defined
+
+- name: Fail if image not found
+  fail:
+    msg: "Desktop image not found: {{ step.image }}"
+  when: step.image is defined and not desktop_image.stat.exists
+
+- name: Set desktop picture for all displays
+  shell: |
+    osascript -e 'tell application "System Events" to tell every desktop to set picture to "{{ step.image }}"'
+  when: step.image is defined and step.display is not defined
+
+- name: Set desktop picture for specific display
+  shell: |
+    osascript -e 'tell application "System Events" to tell desktop {{ step.display }} to set picture to "{{ step.image }}"'
+  when: step.image is defined and step.display is defined
+
+- name: Set solid color background
+  shell: |
+    # Setting solid color requires clearing the picture first
+    osascript -e 'tell application "System Events" to tell every desktop to set picture to ""'
+    # Note: True solid color requires additional steps via defaults
+  when: step.color is defined and step.image is not defined
+
+- name: Report desktop configuration
+  debug:
+    msg: "Desktop background configured{% if step.image is defined %}: {{ step.image }}{% endif %}"
