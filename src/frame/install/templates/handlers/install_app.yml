@@ -38,7 +38,7 @@
     - name: Sync app bundle to target location
       ansible.posix.synchronize:
         src: "{{ source_path }}"
-        dest: "{{ target_location }}/{{ app_name }}"
+        dest: "{{ target_location }}/"
         delete: yes
       become: "{{ needs_sudo }}"
 
