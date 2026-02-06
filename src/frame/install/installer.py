@@ -19,6 +19,86 @@ from .generators import (
 )
 
 
+# --- YAML Include Support ---
+
+class IncludeLoader(yaml.SafeLoader):
+    """YAML loader that supports !include tag for file inclusion.
+
+    Usage in YAML:
+        # Include entire file (must be a list of steps)
+        steps:
+          - !include common/base.yml
+          - name: Local step
+            type: command
+            args: echo hello
+
+        # The included file should contain a list:
+        # common/base.yml:
+        # - name: Step 1
+        #   type: homebrew
+        #   packages: [git]
+    """
+    pass
+
+
+def _include_constructor(loader: IncludeLoader, node: yaml.Node) -> Any:
+    """Handle !include tag - load and return contents of referenced file."""
+    # Get the path relative to the current file being loaded
+    include_path = loader.construct_scalar(node)
+
+    # Resolve relative to the file containing the !include
+    base_dir = Path(loader.name).parent if hasattr(loader, 'name') else Path.cwd()
+    full_path = base_dir / include_path
+
+    if not full_path.exists():
+        raise yaml.YAMLError(f"Include file not found: {full_path}")
+
+    # Load the included file with the same loader (supports nested includes)
+    with open(full_path) as f:
+        # Create a new loader for the included file
+        included_loader = IncludeLoader(f)
+        included_loader.name = str(full_path)
+        try:
+            return included_loader.get_single_data()
+        finally:
+            included_loader.dispose()
+
+
+# Register the !include constructor
+IncludeLoader.add_constructor('!include', _include_constructor)
+
+
+def load_yaml_with_includes(file_path: Path) -> Any:
+    """Load a YAML file with !include tag support."""
+    with open(file_path) as f:
+        loader = IncludeLoader(f)
+        loader.name = str(file_path)
+        try:
+            return loader.get_single_data()
+        finally:
+            loader.dispose()
+
+
+def flatten_includes(data: Any) -> Any:
+    """Flatten nested lists created by !include in step lists.
+
+    When !include returns a list and it's used inside another list,
+    we get nested lists. This flattens them into a single list.
+    """
+    if isinstance(data, list):
+        result = []
+        for item in data:
+            if isinstance(item, list):
+                # Flatten: include returned a list of steps
+                result.extend(flatten_includes(item))
+            else:
+                result.append(flatten_includes(item))
+        return result
+    elif isinstance(data, dict):
+        return {k: flatten_includes(v) for k, v in data.items()}
+    return data
+
+
 def check_ansible_installed() -> None:
     """Verify ansible-playbook is available, exit with helpful message if not."""
     if shutil.which("ansible-playbook") is None:
@@ -301,14 +381,17 @@ def install(
     if host:
         typer.echo(f"Target: {host} (remote via SSH)")
 
-    # Read state.yaml
+    # Read state.yaml (with !include support)
     if not state_file.exists():
         typer.echo(f"❌ Error: State file not found: {state_file}", err=True)
         raise typer.Exit(1)
 
     try:
-        with open(state_file) as f:
-            raw = yaml.safe_load(f)
+        raw = load_yaml_with_includes(state_file)
+        raw = flatten_includes(raw)  # Flatten any nested lists from includes
+    except yaml.YAMLError as e:
+        typer.echo(f"❌ Error reading state file: {e}", err=True)
+        raise typer.Exit(1)
     except Exception as e:
         typer.echo(f"❌ Error reading state file: {e}", err=True)
         raise typer.Exit(1)
@@ -320,6 +403,8 @@ def install(
     elif isinstance(raw, dict):
         config = raw.get('config', {})
         state_entries = raw.get('steps', [])
+        # Flatten steps in case includes created nested lists
+        state_entries = flatten_includes(state_entries)
     else:
         typer.echo("❌ Error: State file must contain a list or a dict with 'steps'", err=True)
         raise typer.Exit(1)

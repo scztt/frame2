@@ -1,0 +1,14 @@
+# Common base system configuration
+# Include this in your state files with: !include common/base_system.yml
+
+- name: Enable remote login (SSH)
+  type: systemsetup
+  items:
+    remotelogin: "on"
+
+- name: Disable sleep when plugged in
+  type: pmset
+  settings:
+    displaysleep: 0
+    sleep: 0
+  power_source: charger
