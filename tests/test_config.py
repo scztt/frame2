@@ -20,17 +20,7 @@ class TestInlineSource:
 
     def test_inline_source_simple(self):
         """Model item can have inline source."""
-        config = {
-            "model": {
-                "timestamp": {
-                    "default": None,
-                    "source": {
-                        "type": "shell",
-                        "command": "echo 'test'"
-                    }
-                }
-            }
-        }
+        config = {"model": {"timestamp": {"default": None, "source": {"type": "shell", "command": "echo 'test'"}}}}
 
         model = load_config(config)
 
@@ -40,17 +30,7 @@ class TestInlineSource:
 
     def test_inline_source_cannot_have_target(self):
         """Inline source with target field should raise error."""
-        config = {
-            "model": {
-                "value": {
-                    "source": {
-                        "type": "shell",
-                        "command": "echo test",
-                        "target": "other_field"  # Conflict!
-                    }
-                }
-            }
-        }
+        config = {"model": {"value": {"source": {"type": "shell", "command": "echo test", "target": "other_field"}}}}  # Conflict!
 
         with pytest.raises(ConfigError, match="inline source with 'target' field"):
             load_config(config)
@@ -61,22 +41,11 @@ class TestInlineEffect:
 
     def test_inline_effect_simple(self):
         """Model item can have inline effect."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            config = {
-                "model": {
-                    "counter": {
-                        "default": 0,
-                        "effect": {
-                            "type": "file_write",
-                            "path": temp_path,
-                            "template": "Count: {{ counter }}"
-                        }
-                    }
-                }
-            }
+            config = {"model": {"counter": {"default": 0, "effect": {"type": "file_write", "path": temp_path, "template": "Count: {{ counter }}"}}}}
 
             model = load_config(config)
 
@@ -93,17 +62,7 @@ class TestInlineEffect:
 
     def test_inline_effect_cannot_have_source(self):
         """Inline effect with source field should raise error."""
-        config = {
-            "model": {
-                "value": {
-                    "effect": {
-                        "type": "shell",
-                        "command": "echo test",
-                        "source": "other_field"  # Conflict!
-                    }
-                }
-            }
-        }
+        config = {"model": {"value": {"effect": {"type": "shell", "command": "echo test", "source": "other_field"}}}}  # Conflict!
 
         with pytest.raises(ConfigError, match="inline effect with 'source' field"):
             load_config(config)
@@ -114,18 +73,7 @@ class TestSourcesSection:
 
     def test_source_with_plain_target(self):
         """Source with plain target creates model field automatically."""
-        config = {
-            "sources": {
-                "date_source": {
-                    "type": "shell",
-                    "command": "date",
-                    "target": "current_date"
-                }
-            },
-            "model": {
-                "current_date": None
-            }
-        }
+        config = {"sources": {"date_source": {"type": "shell", "command": "date", "target": "current_date"}}, "model": {"current_date": None}}
 
         reactive_config = ReactiveConfig(config)
         model = reactive_config.build()
@@ -136,18 +84,7 @@ class TestSourcesSection:
 
     def test_source_with_at_reference(self):
         """Source with reference connects to existing model field."""
-        config = {
-            "sources": {
-                "shell_source": {
-                    "type": "shell",
-                    "command": "echo test",
-                    "target": "output"
-                }
-            },
-            "model": {
-                "output": {"default": None}
-            }
-        }
+        config = {"sources": {"shell_source": {"type": "shell", "command": "echo test", "target": "output"}}, "model": {"output": {"default": None}}}
 
         reactive_config = ReactiveConfig(config)
         model = reactive_config.build()
@@ -161,23 +98,11 @@ class TestEffectsSection:
 
     def test_effect_with_at_reference(self):
         """Effect with reference subscribes to model field."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            config = {
-                "model": {
-                    "status": {"default": "idle"}
-                },
-                "effects": {
-                    "logger": {
-                        "type": "file_write",
-                        "path": temp_path,
-                        "template": "Status: {{ status }}",
-                        "source": "status"
-                    }
-                }
-            }
+            config = {"model": {"status": {"default": "idle"}}, "effects": {"logger": {"type": "file_write", "path": temp_path, "template": "Status: {{ status }}", "source": "status"}}}
 
             model = load_config(config)
 
@@ -194,15 +119,7 @@ class TestEffectsSection:
 
     def test_effect_cannot_have_inline_source_object(self):
         """Effect with inline source object should raise error."""
-        config = {
-            "effects": {
-                "my_effect": {
-                    "type": "shell",
-                    "command": "echo test",
-                    "source": {"type": "shell", "command": "date"}  # Not allowed!
-                }
-            }
-        }
+        config = {"effects": {"my_effect": {"type": "shell", "command": "echo test", "source": {"type": "shell", "command": "date"}}}}  # Not allowed!
 
         with pytest.raises(ConfigError, match="inline source object"):
             load_config(config)
@@ -213,24 +130,13 @@ class TestReferenceConnection:
 
     def test_model_effect_reference(self):
         """Model can reference named effect with ."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
             config = {
-                "model": {
-                    "value": {
-                        "default": 0,
-                        "effect": "logger"  # Reference to effects section
-                    }
-                },
-                "effects": {
-                    "logger": {
-                        "type": "file_write",
-                        "path": temp_path,
-                        "template": "Value: {{ value }}"
-                    }
-                }
+                "model": {"value": {"default": 0, "effect": "logger"}},  # Reference to effects section
+                "effects": {"logger": {"type": "file_write", "path": temp_path, "template": "Value: {{ value }}"}},
             }
 
             model = load_config(config)
@@ -252,30 +158,14 @@ class TestCompleteConfig:
 
     def test_all_sections_together(self):
         """Config with sources, model, and effects all working together."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             log_path = f.name
 
         try:
             config = {
-                "sources": {
-                    "cmd_source": {
-                        "type": "shell",
-                        "command": "echo hello",
-                        "target": "message"
-                    }
-                },
-                "model": {
-                    "message": {"default": None},
-                    "counter": {"default": 0}
-                },
-                "effects": {
-                    "log_effect": {
-                        "type": "file_write",
-                        "path": log_path,
-                        "template": "Message: {{ message }}\n",
-                        "source": "message"
-                    }
-                }
+                "sources": {"cmd_source": {"type": "shell", "command": "echo hello", "target": "message"}},
+                "model": {"message": {"default": None}, "counter": {"default": 0}},
+                "effects": {"log_effect": {"type": "file_write", "path": log_path, "template": "Message: {{ message }}\n", "source": "message"}},
             }
 
             reactive_config = ReactiveConfig(config)
@@ -294,24 +184,13 @@ class TestCompleteConfig:
 
     def test_minimal_model_only_config(self):
         """Minimal config with just model section and inline definitions."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
             config = {
                 "model": {
-                    "temperature": {
-                        "default": 20,
-                        "source": {
-                            "type": "shell",
-                            "command": "echo '25'"
-                        },
-                        "effect": {
-                            "type": "file_write",
-                            "path": temp_path,
-                            "template": "Temp: {{ temperature }}°C"
-                        }
-                    }
+                    "temperature": {"default": 20, "source": {"type": "shell", "command": "echo '25'"}, "effect": {"type": "file_write", "path": temp_path, "template": "Temp: {{ temperature }}°C"}}
                 }
             }
 
@@ -334,29 +213,14 @@ class TestConfigValidation:
 
     def test_missing_model_field_for_source(self):
         """Source referencing non-existent model field should error."""
-        config = {
-            "sources": {
-                "my_source": {
-                    "type": "shell",
-                    "command": "echo test",
-                    "target": "nonexistent"
-                }
-            }
-        }
+        config = {"sources": {"my_source": {"type": "shell", "command": "echo test", "target": "nonexistent"}}}
 
         with pytest.raises(ConfigError, match="not found in model state"):
             load_config(config)
 
     def test_missing_effect_for_reference(self):
         """Model referencing non-existent effect should error."""
-        config = {
-            "model": {
-                "value": {
-                    "default": 0,
-                    "effect": "nonexistent_effect"
-                }
-            }
-        }
+        config = {"model": {"value": {"default": 0, "effect": "nonexistent_effect"}}}
 
         with pytest.raises(ConfigError, match="not found in effects catalog"):
             load_config(config)
@@ -370,13 +234,7 @@ class TestConfigValidation:
 
     def test_model_with_simple_values(self):
         """Model can have simple non-dict values."""
-        config = {
-            "model": {
-                "counter": 0,
-                "name": "test",
-                "active": True
-            }
-        }
+        config = {"model": {"counter": 0, "name": "test", "active": True}}
 
         model = load_config(config)
 
@@ -390,13 +248,7 @@ class TestCatalogNaming:
 
     def test_inline_source_naming(self):
         """Inline sources are named 'fieldName(source)'."""
-        config = {
-            "model": {
-                "data": {
-                    "source": {"type": "shell", "command": "echo test"}
-                }
-            }
-        }
+        config = {"model": {"data": {"source": {"type": "shell", "command": "echo test"}}}}
 
         reactive_config = ReactiveConfig(config)
         reactive_config.build()
@@ -405,21 +257,11 @@ class TestCatalogNaming:
 
     def test_inline_effect_naming(self):
         """Inline effects are named 'fieldName(effect)'."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            config = {
-                "model": {
-                    "value": {
-                        "effect": {
-                            "type": "file_write",
-                            "path": temp_path,
-                            "template": "{{ value }}"
-                        }
-                    }
-                }
-            }
+            config = {"model": {"value": {"effect": {"type": "file_write", "path": temp_path, "template": "{{ value }}"}}}}
 
             reactive_config = ReactiveConfig(config)
             reactive_config.build()

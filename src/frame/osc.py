@@ -1,2 +1,1 @@
-from pythonosc import udp_server
-
+from pythonosc import osc_server  # noqa: F401

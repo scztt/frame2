@@ -1,11 +1,12 @@
-from functools import singledispatch
 import asyncio
 import os
 from typing import List, Union
 
+
 class ShellError(Exception):
     def __init__(self, message: str):
         super().__init__(message)
+
 
 async def run_command_str(value: str, sudo: bool = False):
     if sudo:
@@ -18,7 +19,7 @@ async def run_command_str(value: str, sudo: bool = False):
             command = f"sudo {value}"
     else:
         command = value
-        
+
     process = await asyncio.create_subprocess_shell(
         command,
         stdout=asyncio.subprocess.PIPE,
@@ -47,7 +48,8 @@ async def run_command_list(value: List[str], sudo: bool = False):
         else:
             # Use exec mode with sudo prepended
             process = await asyncio.create_subprocess_exec(
-                "sudo", *value,
+                "sudo",
+                *value,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -57,7 +59,7 @@ async def run_command_list(value: List[str], sudo: bool = False):
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
-        
+
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:

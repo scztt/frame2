@@ -1,19 +1,13 @@
 import asyncio
 from contextlib import ExitStack
 from copy import deepcopy
-import json
-from queue import Queue
-from re import sub
-from sys import settrace
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Tuple
 from frame.actions import ActionBase, make_action
 from frame.parsers import register_parsers
 from frame.registry import set_defaults
 from frame.values import ValueDelegate, make_value
 
-
-State = Dict[str, float|int|str|bool|None]
+State = Dict[str, float | int | str | bool | None]
 
 Selector = Callable[[State], Any]
 Callback = Callable[[Any], None]
@@ -89,9 +83,9 @@ class Config:
         self.settings = self.parse_settings(config.get("settings", {}))
         self.parse_types(config.get("types", {}))
         self.parse_defaults(config.get("defaults", {}))
-        (self.delegates, self.state_order) = self.parse_model(config.get("model", {}))
+        self.delegates, self.state_order = self.parse_model(config.get("model", {}))
         self.state = {name: None for name, delegate in self.delegates.items()}
-        (self.actions, self.actions_order) = self.parse_actions(config.get("actions", {}))
+        self.actions, self.actions_order = self.parse_actions(config.get("actions", {}))
         self.project_name = config.get("name", "Untitled Project")
         self.password_hash = config["password_hash"]
 
@@ -237,7 +231,7 @@ class Config:
 
         queue = asyncio.Queue[Any]()
         with ExitStack() as stack:
-            subscriptions = [stack.enter_context(self.subscribe_rendered_updates(name, queue)) for name in self.get_properties()]
+            [stack.enter_context(self.subscribe_rendered_updates(name, queue)) for name in self.get_properties()]
 
             while True:
                 property_name, rendered = await queue.get()

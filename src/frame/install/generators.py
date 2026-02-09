@@ -4,7 +4,6 @@ from typing import List, Dict, Any, Optional
 from pathlib import Path
 import yaml
 
-
 # Get the templates directory
 TEMPLATES_DIR = Path(__file__).parent / "templates"
 HANDLERS_DIR = TEMPLATES_DIR / "handlers"
@@ -49,9 +48,9 @@ def _split_handler(raw: str) -> tuple:
         meta = docs[0]
         # Return the raw text after the first --- separator for the tasks
         # Find the second '---' which starts the tasks document
-        parts = raw.split('\n---\n', 1)
+        parts = raw.split("\n---\n", 1)
         if len(parts) == 2:
-            tasks_str = '---\n' + parts[1]
+            tasks_str = "---\n" + parts[1]
         else:
             tasks_str = raw
         return meta, tasks_str
@@ -113,45 +112,45 @@ def step_label(entry: Dict[str, Any]) -> str:
     Used for both CLI display and ansible task names (so step detection works).
     """
     # Use explicit name if provided
-    if 'name' in entry:
-        return entry['name']
+    if "name" in entry:
+        return entry["name"]
     # Fall back to auto-generated label
-    t = entry['type']
-    if t == 'install_app':
-        source = entry.get('path', entry.get('remote', {}).get('url', '?'))
-        return source.split('/')[-1]
-    elif t == 'homebrew':
-        pkgs = entry.get('packages', [])
-        label = ', '.join(pkgs[:3])
+    t = entry["type"]
+    if t == "install_app":
+        source = entry.get("path", entry.get("remote", {}).get("url", "?"))
+        return source.split("/")[-1]
+    elif t == "homebrew":
+        pkgs = entry.get("packages", [])
+        label = ", ".join(pkgs[:3])
         if len(pkgs) > 3:
-            label += f'... ({len(pkgs)} total)'
+            label += f"... ({len(pkgs)} total)"
         return f"Homebrew: {label}"
-    elif t == 'copy':
-        src_name = entry['src'].split('/')[-1]
+    elif t == "copy":
+        src_name = entry["src"].split("/")[-1]
         return f"Copy: {src_name} → {entry['dest']}"
-    elif t == 'launchctl':
-        label = entry.get('label', entry.get('src', '?').split('/')[-1].replace('.plist', ''))
+    elif t == "launchctl":
+        label = entry.get("label", entry.get("src", "?").split("/")[-1].replace(".plist", ""))
         return f"Service: {label}"
-    elif t == 'defaults':
-        count = len(entry.get('items', []))
+    elif t == "defaults":
+        count = len(entry.get("items", []))
         return f"Defaults: {count} setting(s)"
-    elif t == 'command':
-        args = entry.get('args', '')
+    elif t == "command":
+        args = entry.get("args", "")
         if isinstance(args, str):
             return args[:50]
-        return ' '.join(str(a) for a in args[:3])
-    elif t == 'systemsetup':
-        count = len(entry.get('items', {}))
+        return " ".join(str(a) for a in args[:3])
+    elif t == "systemsetup":
+        count = len(entry.get("items", {}))
         return f"System: {count} setting(s)"
-    elif t == 'npx':
+    elif t == "npx":
         return f"NPX: {entry.get('package', '?')}"
-    elif t == 'audio':
+    elif t == "audio":
         return "Audio configuration"
-    elif t == 'download':
-        filename = entry.get('url', '?').split('/')[-1]
+    elif t == "download":
+        filename = entry.get("url", "?").split("/")[-1]
         return f"Download: {filename}"
-    elif t == 'install_pkg':
-        return entry['path'].split('/')[-1]
+    elif t == "install_pkg":
+        return entry["path"].split("/")[-1]
     else:
         return str(t)
 
@@ -222,7 +221,4 @@ def list_available_handlers() -> List[str]:
     """List all available handler types by scanning the handlers directory."""
     if not HANDLERS_DIR.exists():
         return []
-    return [
-        path.stem for path in HANDLERS_DIR.glob("*.yml")
-        if path.is_file()
-    ]
+    return [path.stem for path in HANDLERS_DIR.glob("*.yml") if path.is_file()]

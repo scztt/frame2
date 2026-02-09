@@ -1,9 +1,8 @@
 from typing import Any, Dict
 
 from pythonosc import udp_client
-from fastapi import requests
 from frame.registry import TypeRegistry
-import json
+from frame.renderers import render_nested_dict
 from starlette.exceptions import HTTPException
 import httpx
 
@@ -63,6 +62,7 @@ class IFTTT(NotificationTargetBase, name="ifttt"):
             print(e)
             return {"error": str(e)}
 
+
 class OSCTarget(NotificationTargetBase, name="osc"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
@@ -72,11 +72,13 @@ class OSCTarget(NotificationTargetBase, name="osc"):
 
     async def notify(self, data: Dict[str, Any]) -> Any:
         value = data.get("message")
+        if value is None:
+            return
         try:
             value = int(value)
-        except Exception:
-            value = float(value)
-        except Exception:
-            pass
+        except (ValueError, TypeError):
+            try:
+                value = float(value)
+            except (ValueError, TypeError):
+                pass
         self.client.send_message(self.path, value)
-

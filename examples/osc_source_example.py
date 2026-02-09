@@ -12,11 +12,7 @@ Run this example, then send OSC messages using TouchOSC, Max/MSP, or Python:
     client.send_message("/position", [100, 200, 300])
 """
 
-from frame.action_observable import (
-    Model, PropertyAction, ReplaceAction,
-    OSCSource, OSCSourceSettings,
-    PropertyObserver, LogObserver
-)
+from frame.action_observable import Model, PropertyAction, ReplaceAction, OSCSource, OSCSourceSettings, PropertyObserver, LogObserver
 import time
 
 
@@ -28,19 +24,13 @@ def example_single_value():
     print("Press Ctrl+C to stop\n")
 
     # Create model
-    model = Model({'volume': 0.0})
+    model = Model({"volume": 0.0})
 
     # Create OSC source that extracts first value
-    osc = OSCSource(OSCSourceSettings(
-        port=8000,
-        address="/volume",
-        value_index=0  # Extract first value
-    ))
+    osc = OSCSource(OSCSourceSettings(port=8000, address="/volume", value_index=0))  # Extract first value
 
     # Connect: OSC -> PropertyAction -> Model
-    osc.subscribe(lambda value: model.emit(
-        PropertyAction("volume", ReplaceAction(value))
-    ))
+    osc.subscribe(lambda value: model.emit(PropertyAction("volume", ReplaceAction(value))))
 
     # Watch model changes
     prop_obs = PropertyObserver("volume")
@@ -68,19 +58,13 @@ def example_multiple_values():
     print("Press Ctrl+C to stop\n")
 
     # Create model
-    model = Model({'position': [0, 0, 0]})
+    model = Model({"position": [0, 0, 0]})
 
     # Create OSC source that returns all values
-    osc = OSCSource(OSCSourceSettings(
-        port=8001,
-        address="/position",
-        value_index=None  # Return all values as list
-    ))
+    osc = OSCSource(OSCSourceSettings(port=8001, address="/position", value_index=None))  # Return all values as list
 
     # Connect: OSC -> PropertyAction -> Model
-    osc.subscribe(lambda values: model.emit(
-        PropertyAction("position", ReplaceAction(values))
-    ))
+    osc.subscribe(lambda values: model.emit(PropertyAction("position", ReplaceAction(values))))
 
     # Watch model changes
     prop_obs = PropertyObserver("position")
@@ -108,30 +92,15 @@ def example_multiple_sources():
     print("Press Ctrl+C to stop\n")
 
     # Create model with multiple fields
-    model = Model({
-        'volume': 0.5,
-        'pan': 0.0
-    })
+    model = Model({"volume": 0.5, "pan": 0.0})
 
     # Volume control
-    volume_osc = OSCSource(OSCSourceSettings(
-        port=8002,
-        address="/control/volume",
-        value_index=0
-    ))
-    volume_osc.subscribe(lambda value: model.emit(
-        PropertyAction("volume", ReplaceAction(value))
-    ))
+    volume_osc = OSCSource(OSCSourceSettings(port=8002, address="/control/volume", value_index=0))
+    volume_osc.subscribe(lambda value: model.emit(PropertyAction("volume", ReplaceAction(value))))
 
     # Pan control
-    pan_osc = OSCSource(OSCSourceSettings(
-        port=8003,
-        address="/control/pan",
-        value_index=0
-    ))
-    pan_osc.subscribe(lambda value: model.emit(
-        PropertyAction("pan", ReplaceAction(value))
-    ))
+    pan_osc = OSCSource(OSCSourceSettings(port=8003, address="/control/pan", value_index=0))
+    pan_osc.subscribe(lambda value: model.emit(PropertyAction("pan", ReplaceAction(value))))
 
     # Watch both fields
     volume_obs = PropertyObserver("volume")

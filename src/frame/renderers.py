@@ -1,11 +1,15 @@
-from typing import Dict, Any, Generic, Tuple, Type
+from __future__ import annotations
+
+from typing import Dict, Any, Tuple, TYPE_CHECKING
 import uuid
 
-from annotated_types import T
-import jinja2
 from frame.images import ImageRef
 from frame.registry import TypeRegistry
 import html as html_module
+
+if TYPE_CHECKING:
+    from frame.actions import ActionBase
+    from frame.model import Config
 
 
 def render_nested_list(data, indent=0):
@@ -47,9 +51,10 @@ def render_log(log: str):
     # Generate a unique ID for the container
     container_id = f"log-container-{uuid.uuid4().hex[:8]}"
 
+    pre_style = "font-family: monospace; white-space: pre; margin: 0; padding: 10px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; width: 100%; height: 100%;"
     html = f"""
         <div id="{container_id}" class="log-container" style="overflow-y: auto; margin: 10px 0; width: 100%; height: 100%;">
-            <pre style="font-family: monospace; white-space: pre; margin: 0; padding: 10px; background-color: #f5f5f5; border: 1px solid #ddd; border-radius: 4px; width: 100%; height: 100%;"><code>{escaped_log}</code></pre>
+            <pre style="{pre_style}"><code>{escaped_log}</code></pre>
         </div>
         <script>
             (function() {{
@@ -87,12 +92,12 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
     return f"""
         <div class="number-control-container">
             <label for="{id}">{name}:</label>
-            <input type="number" 
-                id="{id}" 
-                min="{min}" 
-                max="{max}" 
-                step="{step}" 
-                value="{value}" 
+            <input type="number"
+                id="{id}"
+                min="{min}"
+                max="{max}"
+                step="{step}"
+                value="{value}"
                 class="number-control"
                 hx-post="{path}"
                 hx-trigger="change"
@@ -105,7 +110,7 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
                     const input = document.getElementById('{id}');
                     let isDragging = false;
                     let lastY = 0;
-                    
+
                     // Mouse events
                     input.addEventListener('mousedown', (e) => {{
                         isDragging = true;
@@ -113,22 +118,22 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
                         document.body.style.cursor = 'ns-resize';
                         e.preventDefault(); // Prevent text selection
                     }});
-                    
+
                     document.addEventListener('mousemove', (e) => {{
                         if (!isDragging) return;
-                        
+
                         const deltaY = lastY - e.clientY;
                         lastY = e.clientY;
                         let newValue = parseFloat(input.value) + (deltaY * {step});
                         newValue = Math.max({min}, Math.min({max}, newValue));
                         newValue = newValue.toFixed(2);
-                
+
                         if (input.value !== newValue.toString()) {{
                             input.value = newValue;
                             input.dispatchEvent(new Event('change'));
                         }}
                     }});
-                    
+
                     document.addEventListener('mouseup', () => {{
                         if (isDragging) {{
                             isDragging = false;
@@ -137,31 +142,31 @@ def render_number_control(name: str, min: float, max: float, step: float, value:
                             input.dispatchEvent(new Event('change'));
                         }}
                     }});
-                    
+
                     // Touch events for mobile
                     input.addEventListener('touchstart', (e) => {{
                         isDragging = true;
                         lastY = e.touches[0].clientY;
                         e.preventDefault(); // Prevent scrolling
                     }});
-                    
+
                     document.addEventListener('touchmove', (e) => {{
                         if (!isDragging) return;
-                        
+
                         const deltaY = lastY - e.touches[0].clientY;
                         lastY = e.touches[0].clientY;
                         let newValue = parseFloat(input.value) + (deltaY * {step});
                         newValue = Math.max({min}, Math.min({max}, newValue));
                         newValue = newValue.toFixed(2);
-                
+
                         if (input.value !== newValue.toString()) {{
                             input.value = newValue;
                             input.dispatchEvent(new Event('change'));
                         }}
-                        
+
                         e.preventDefault(); // Prevent scrolling while dragging
                     }});
-                    
+
                     document.addEventListener('touchend', () => {{
                         if (isDragging) {{
                             isDragging = false;
@@ -182,9 +187,9 @@ def render_folding_value(name: str, path: str):
             <div class="header" onclick="toggleSection('{path}', 'container-{id}')">
                 <span class="toggle-icon">▶</span>
                 <h3>{name}</h3>
-                <span id="refresh-{id}" class="refresh-icon refresh-{id}" 
-                    hx-get="{path}" 
-                    hx-target="#output-{id}" 
+                <span id="refresh-{id}" class="refresh-icon refresh-{id}"
+                    hx-get="{path}"
+                    hx-target="#output-{id}"
                     onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
                   ↻
                 </span>
@@ -203,9 +208,9 @@ def render_simple_value(name: str, path: str):
             <div class="header" style="align-items: center;">
                 <h3 style="margin-right: 10px;">{name}:</h3>
                 <div id="output-{id}" class="output-container" sse-swap="{id}" style="display: flex; display: inline-block; margin-left: 15px; border-top: none; padding: 0;"></div>
-                <span id="refresh-{id}" class="refresh-icon refresh-{id}" 
+                <span id="refresh-{id}" class="refresh-icon refresh-{id}"
                     hx-get="{path}"
-                    hx-target="#output-{id}" 
+                    hx-target="#output-{id}"
                     onclick="refreshData(event, 'container-{id}', 'refresh-{id}', '{path}')">
                 ↻
                 </span>
@@ -271,11 +276,13 @@ def load_renderer_types(settings: Dict[str, Any]):
 # Implementations
 ############################################################
 
+
 class HiddenRenderer(RendererBase, name="hidden"):
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
         self.visible = False
         settings["visible"] = False
+
 
 class StringRenderer(RendererBase, name="string"):
     def render_data(self, data: Any) -> str:
@@ -320,11 +327,11 @@ class ImageRenderer(RendererBase, name="image"):
 
     def render_data(self, data: ImageRef) -> str:
         return f"""
-            <img 
-                src='/{data.url}?{uuid.uuid4().hex}' 
-                class='screenshot-img' 
+            <img
+                src='/{data.url}?{uuid.uuid4().hex}'
+                class='screenshot-img'
                 onclick="this.classList.toggle('fullsize'); document.getElementById('lightbox-overlay').classList.toggle('active');"
-                alt="Screenshot" 
+                alt="Screenshot"
             />
         """
 
@@ -334,7 +341,7 @@ class ActionRenderer(RendererBase, name="action"):
         super().__init__(settings)
 
     def render_list_item(self, name: str, path: str) -> str:
-        return render_simple_value_side_by_side(name, path)
+        return render_simple_value(name, path)
 
     def render_data(self, data: "ActionBase") -> str:
         id = uuid.uuid4().hex
@@ -343,9 +350,9 @@ class ActionRenderer(RendererBase, name="action"):
         output_id = f"output-{id}"
         return f"""
             <div style="display: block;">
-                <button id="{btn_id}" class="action-button" 
-                hx-post="{data.url}" 
-                hx-target="#{output_id}" 
+                <button id="{btn_id}" class="action-button"
+                hx-post="{data.url}"
+                hx-target="#{output_id}"
                 hx-swap="innerHTML"
                 hx-headers='{{"Content-Type": "application/json"}}'
                 hx-vals='{{}}'>
@@ -371,6 +378,7 @@ class SliderRenderer(ActionRenderer, name="slider"):
 
 
 # === Data Transformation Renderers (for Effects) ===
+
 
 class FormatRenderer(RendererBase, name="format"):
     """
@@ -431,7 +439,7 @@ class ObjectWrapper:
         if isinstance(self._obj, dict):
             return self._obj.keys()
         # For objects, return all non-private attributes
-        return [k for k in dir(self._obj) if not k.startswith('_')]
+        return [k for k in dir(self._obj) if not k.startswith("_")]
 
     def items(self):
         """Return key-value pairs for dict-like iteration."""
@@ -461,7 +469,8 @@ class TemplateRenderer(RendererBase, name="template"):
 
     def __init__(self, settings: Dict[str, Any]):
         super().__init__(settings)
-        import jinja2
+        import jinja2  # noqa: F811
+
         template_string = settings.get("string", "{{ value }}")
         self.template = jinja2.Template(template_string)
 

@@ -72,10 +72,10 @@ class TypeRegistry(Generic[T]):
             raise ValueError(f"No type registered with name: {settings['type']}")
 
         # Check if class has a settings_type attribute (for dataclass settings)
-        if hasattr(cls, 'settings_type'):
+        if hasattr(cls, "settings_type"):
             settings_type = cls.settings_type
             # Remove 'type' key before constructing settings dataclass
-            settings_dict = {k: v for k, v in settings.items() if k != 'type'}
+            settings_dict = {k: v for k, v in settings.items() if k != "type"}
             settings_obj = settings_type(**settings_dict)
 
             # Create instance with settings object

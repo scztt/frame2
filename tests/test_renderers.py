@@ -7,7 +7,6 @@ Tests the new data transformation renderers:
 - ObjectWrapper: Makes object attributes accessible as dict keys
 """
 
-import pytest
 from frame.renderers import FormatRenderer, TemplateRenderer, ObjectWrapper
 
 
@@ -69,6 +68,7 @@ class TestTemplateRenderer:
 
     def test_template_renderer_with_object(self):
         """TemplateRenderer uses ObjectWrapper for objects."""
+
         class Person:
             def __init__(self):
                 self.name = "Charlie"
@@ -114,6 +114,7 @@ class TestObjectWrapper:
 
     def test_object_wrapper_getitem_with_object(self):
         """ObjectWrapper allows dict-style access to object attributes."""
+
         class TestObj:
             def __init__(self):
                 self.x = 10
@@ -135,6 +136,7 @@ class TestObjectWrapper:
 
     def test_object_wrapper_keys_with_object(self):
         """ObjectWrapper returns non-private attributes as keys."""
+
         class TestObj:
             def __init__(self):
                 self.public1 = "a"
@@ -199,18 +201,12 @@ class TestRenderersInEffects:
         import tempfile
         import os
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
             # Create effect with format renderer
-            effect = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path,
-                    template="{{ value }}",
-                    renderer={"type": "format", "string": "Formatted: {}"}
-                )
-            )
+            effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="{{ value }}", renderer={"type": "format", "string": "Formatted: {}"}))
 
             # Call effect with simple value
             effect(42)
@@ -229,18 +225,12 @@ class TestRenderersInEffects:
         import tempfile
         import os
 
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
             # Create effect with template renderer
-            effect = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path,
-                    template="{{ value }}",
-                    renderer={"type": "template", "string": "Processed: {{ x * 2 }}"}
-                )
-            )
+            effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="{{ value }}", renderer={"type": "template", "string": "Processed: {{ x * 2 }}"}))
 
             # Call effect with dict
             effect({"x": 10})

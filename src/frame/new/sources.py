@@ -17,8 +17,8 @@ from frame.images import image_repo
 from frame.registry import TypeRegistry
 from frame.shell import run_command
 
-
 # === Base and Registry ===
+
 
 class SourceBase:
     """Base class for all sources."""
@@ -61,9 +61,11 @@ def make_source(settings: Dict[str, Any] | str) -> Tuple[SourceBase, Dict[str, A
 
 # === ShellSource ===
 
+
 @dataclass
 class ShellSourceSettings:
     """Settings for ShellSource."""
+
     command: Union[str, List[str]]
     parser: Optional[str | Dict[str, Any]] = None
     sudo: bool = False
@@ -146,9 +148,11 @@ class ShellSource(SourceBase, name="shell", settings=ShellSourceSettings):
 
 # === TailSource ===
 
+
 @dataclass
 class TailSourceSettings:
     """Settings for TailSource."""
+
     path: str
     lines: int = 100
 
@@ -228,9 +232,11 @@ class TailSource(SourceBase, name="tail", settings=TailSourceSettings):
 
 # === ScreenshotSource ===
 
+
 @dataclass
 class ScreenshotSourceSettings:
     """Settings for ScreenshotSource."""
+
     x: Optional[int] = None
     y: Optional[int] = None
     width: Optional[int] = None
@@ -285,8 +291,7 @@ class ScreenshotSource(SourceBase, name="screenshot", settings=ScreenshotSourceS
         ref = image_repo.make_image_ref(self.id + ".png")
 
         # Region capture if coordinates provided
-        if (self.x is not None and self.y is not None and
-            self.width is not None and self.height is not None):
+        if self.x is not None and self.y is not None and self.width is not None and self.height is not None:
             result = subprocess.run(
                 [
                     "screencapture",
@@ -295,15 +300,11 @@ class ScreenshotSource(SourceBase, name="screenshot", settings=ScreenshotSourceS
                     ref.path,
                 ],
                 capture_output=True,
-                text=True
+                text=True,
             )
         else:
             # Full screen capture
-            result = subprocess.run(
-                ["screencapture", ref.path],
-                capture_output=True,
-                text=True
-            )
+            result = subprocess.run(["screencapture", ref.path], capture_output=True, text=True)
 
         if result.returncode != 0:
             print(f"Screenshot failed: {result.stderr}")
@@ -329,9 +330,11 @@ class ScreenshotSource(SourceBase, name="screenshot", settings=ScreenshotSourceS
 
 # === OSCSource ===
 
+
 @dataclass
 class OSCSourceSettings:
     """Settings for OSCSource."""
+
     port: int
     address: str  # OSC address pattern like "/control/volume"
     ip: str = "0.0.0.0"  # Listen on all interfaces by default
@@ -395,11 +398,7 @@ class OSCSource(SourceBase, name="osc", settings=OSCSourceSettings):
         self.server = BlockingOSCUDPServer((self.ip, self.port), dispatcher)
 
         # Run server in background thread
-        self.server_thread = threading.Thread(
-            target=self.server.serve_forever,
-            daemon=True,
-            name=f"OSCSource-{self.port}"
-        )
+        self.server_thread = threading.Thread(target=self.server.serve_forever, daemon=True, name=f"OSCSource-{self.port}")
         self.server_thread.start()
 
         print(f"OSCSource listening on {self.ip}:{self.port} for {self.address}")

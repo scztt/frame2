@@ -36,102 +36,102 @@ def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
         if not isinstance(entry, dict):
             typer.echo(f"❌ Error: Entry {i} is not a dictionary", err=True)
             raise typer.Exit(1)
-        if 'type' not in entry:
+        if "type" not in entry:
             typer.echo(f"❌ Error: Entry {i} missing 'type' field", err=True)
             raise typer.Exit(1)
 
         # Type-specific validation
-        entry_type = entry['type']
+        entry_type = entry["type"]
 
-        if entry_type == 'install_app':
-            has_path = 'path' in entry
-            has_remote = 'remote' in entry
+        if entry_type == "install_app":
+            has_path = "path" in entry
+            has_remote = "remote" in entry
             if not has_path and not has_remote:
                 typer.echo(f"❌ Error: Entry {i} (install_app) missing 'path' or 'remote' field", err=True)
                 raise typer.Exit(1)
             if has_remote:
-                if not isinstance(entry['remote'], dict):
+                if not isinstance(entry["remote"], dict):
                     typer.echo(f"❌ Error: Entry {i} (install_app) 'remote' must be a dict with 'url'", err=True)
                     raise typer.Exit(1)
-                if 'url' not in entry['remote']:
+                if "url" not in entry["remote"]:
                     typer.echo(f"❌ Error: Entry {i} (install_app) remote missing 'url' field", err=True)
                     raise typer.Exit(1)
 
-        elif entry_type == 'defaults':
-            if 'items' not in entry:
+        elif entry_type == "defaults":
+            if "items" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (defaults) missing 'items' field", err=True)
                 raise typer.Exit(1)
-            if not isinstance(entry['items'], list):
+            if not isinstance(entry["items"], list):
                 typer.echo(f"❌ Error: Entry {i} (defaults) 'items' must be a list", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'homebrew':
-            if 'packages' not in entry:
+        elif entry_type == "homebrew":
+            if "packages" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (homebrew) missing 'packages' field", err=True)
                 raise typer.Exit(1)
-            if not isinstance(entry['packages'], list):
+            if not isinstance(entry["packages"], list):
                 typer.echo(f"❌ Error: Entry {i} (homebrew) 'packages' must be a list", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'launchctl':
-            has_src = 'src' in entry
-            has_program = 'program' in entry
+        elif entry_type == "launchctl":
+            has_src = "src" in entry
+            has_program = "program" in entry
             if not has_src and not has_program:
                 typer.echo(f"❌ Error: Entry {i} (launchctl) missing 'src' or 'program' field", err=True)
                 raise typer.Exit(1)
-            if not has_src and 'label' not in entry:
+            if not has_src and "label" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (launchctl) missing 'label' field (required without 'src')", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'copy':
-            if 'src' not in entry:
+        elif entry_type == "copy":
+            if "src" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (copy) missing 'src' field", err=True)
                 raise typer.Exit(1)
-            if 'dest' not in entry:
+            if "dest" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (copy) missing 'dest' field", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'command':
-            if 'args' not in entry:
+        elif entry_type == "command":
+            if "args" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (command) missing 'args' field", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'install_pkg':
-            if 'path' not in entry:
+        elif entry_type == "install_pkg":
+            if "path" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (install_pkg) missing 'path' field", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'systemsetup':
-            if 'items' not in entry:
+        elif entry_type == "systemsetup":
+            if "items" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (systemsetup) missing 'items' field", err=True)
                 raise typer.Exit(1)
-            if not isinstance(entry['items'], dict):
+            if not isinstance(entry["items"], dict):
                 typer.echo(f"❌ Error: Entry {i} (systemsetup) 'items' must be a dictionary", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'npx':
-            if 'package' not in entry:
+        elif entry_type == "npx":
+            if "package" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (npx) missing 'package' field", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'audio':
-            has_config = any(k in entry for k in ('output', 'input', 'system', 'volume', 'aggregate'))
+        elif entry_type == "audio":
+            has_config = any(k in entry for k in ("output", "input", "system", "volume", "aggregate"))
             if not has_config:
                 typer.echo(f"❌ Error: Entry {i} (audio) must specify at least one of: output, input, system, volume, aggregate", err=True)
                 raise typer.Exit(1)
 
-        elif entry_type == 'download':
-            if 'url' not in entry:
+        elif entry_type == "download":
+            if "url" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (download) missing 'url' field", err=True)
                 raise typer.Exit(1)
-            if 'dest' not in entry:
+            if "dest" not in entry:
                 typer.echo(f"❌ Error: Entry {i} (download) missing 'dest' field", err=True)
                 raise typer.Exit(1)
 
 
 def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
     """Extract unique handler types needed from state entries, including dependencies."""
-    handlers = {entry['type'] for entry in state_entries}
+    handlers = {entry["type"] for entry in state_entries}
     # Resolve dependencies declared in handler metadata
     for handler in list(handlers):
         deps = get_handler_dependencies(handler)
@@ -159,12 +159,12 @@ def _run_with_status(
     total_steps = len(state_entries)
 
     def on_event(event):
-        event_type = event.get('event', '')
-        data = event.get('event_data', {})
+        event_type = event.get("event", "")
+        data = event.get("event_data", {})
 
         # Detect step boundaries — each include_tasks fires this
-        if event_type == 'playbook_on_task_start':
-            task_name = data.get('task', '')
+        if event_type == "playbook_on_task_start":
+            task_name = data.get("task", "")
             if task_name in step_names:
                 current_step[0] += 1
                 idx = current_step[0]
@@ -173,32 +173,31 @@ def _run_with_status(
             return
 
         # Track results
-        if event_type in ('runner_on_ok', 'runner_on_failed', 'runner_on_skipped',
-                          'runner_item_on_ok', 'runner_item_on_failed', 'runner_item_on_skipped'):
+        if event_type in ("runner_on_ok", "runner_on_failed", "runner_on_skipped", "runner_item_on_ok", "runner_item_on_failed", "runner_item_on_skipped"):
             idx = current_step[0]
             if idx < 0 or idx >= len(state_entries):
                 return
 
-            task_name = data.get('task', '')
-            res = data.get('res', {})
+            task_name = data.get("task", "")
+            res = data.get("res", {})
 
             # Append item label for loop tasks
-            if 'item' in res:
-                item = res['item']
+            if "item" in res:
+                item = res["item"]
                 if isinstance(item, str):
                     task_name = f"{task_name} ({item})"
 
-            is_failed = event_type in ('runner_on_failed', 'runner_item_on_failed')
-            is_changed = res.get('changed', False)
+            is_failed = event_type in ("runner_on_failed", "runner_item_on_failed")
+            is_changed = res.get("changed", False)
 
             if is_failed:
                 step_has_failed.add(idx)
-                status_mark = typer.style('[!]', fg='red')
+                status_mark = typer.style("[!]", fg="red")
             elif is_changed:
                 step_has_changed.add(idx)
-                status_mark = typer.style('[~]', fg='green')
+                status_mark = typer.style("[~]", fg="green")
             else:
-                status_mark = typer.style('[x]', fg='green')
+                status_mark = typer.style("[x]", fg="green")
 
             # Verbose: print every sub-task
             if verbose:
@@ -207,30 +206,30 @@ def _run_with_status(
             # Always show failure details with full context
             if is_failed:
                 if not verbose:
-                    typer.echo(typer.style(f"      [!] {task_name}", fg='red'))
+                    typer.echo(typer.style(f"      [!] {task_name}", fg="red"))
 
                 # Show all useful error fields
-                msg = res.get('msg', '')
-                stderr = res.get('stderr', '').strip()
-                stdout = res.get('stdout', '').strip()
-                cmd = res.get('cmd', '')
-                rc = res.get('rc')
+                msg = res.get("msg", "")
+                stderr = res.get("stderr", "").strip()
+                stdout = res.get("stdout", "").strip()
+                cmd = res.get("cmd", "")
+                rc = res.get("rc")
 
                 if msg:
-                    typer.echo(typer.style(f"          Error: {msg}", fg='red'))
+                    typer.echo(typer.style(f"          Error: {msg}", fg="red"))
                 if cmd:
                     if isinstance(cmd, list):
-                        cmd = ' '.join(cmd)
+                        cmd = " ".join(cmd)
                     typer.echo(f"          Command: {cmd}")
                 if rc is not None:
                     typer.echo(f"          Exit code: {rc}")
                 if stdout:
                     typer.echo(f"          stdout: {stdout[:500]}")
                 if stderr:
-                    typer.echo(typer.style(f"          stderr: {stderr[:500]}", fg='red'))
+                    typer.echo(typer.style(f"          stderr: {stderr[:500]}", fg="red"))
 
                 # Show task path for debugging
-                task_path = data.get('task_path', '')
+                task_path = data.get("task_path", "")
                 if task_path:
                     typer.echo(f"          Task: {task_path}")
 
@@ -239,7 +238,7 @@ def _run_with_status(
     # Pass become password via environment variable
     envvars = {}
     if become_password:
-        envvars['ANSIBLE_BECOME_PASS'] = become_password
+        envvars["ANSIBLE_BECOME_PASS"] = become_password
 
     result = ansible_runner.run(
         private_data_dir=str(ansible_dir),
@@ -258,13 +257,13 @@ def _run_with_status(
     skipped_count = total_steps - ran
 
     if failed_count == 0 and skipped_count == 0:
-        typer.echo(typer.style(f"  All {ok_count} steps completed successfully", fg='green'))
+        typer.echo(typer.style(f"  All {ok_count} steps completed successfully", fg="green"))
     else:
         parts = []
         if ok_count > 0:
-            parts.append(typer.style(f"{ok_count} ok", fg='green'))
+            parts.append(typer.style(f"{ok_count} ok", fg="green"))
         if failed_count:
-            parts.append(typer.style(f"{failed_count} failed", fg='red'))
+            parts.append(typer.style(f"{failed_count} failed", fg="red"))
         if skipped_count:
             parts.append(f"{skipped_count} skipped")
         typer.echo("  " + " · ".join(parts))
@@ -316,8 +315,8 @@ def install(
         state_entries = raw
         config = {}
     elif isinstance(raw, dict):
-        config = raw.get('config', {})
-        state_entries = raw.get('steps', [])
+        config = raw.get("config", {})
+        state_entries = raw.get("steps", [])
     else:
         typer.echo("❌ Error: State file must contain a list or a dict with 'steps'", err=True)
         raise typer.Exit(1)
@@ -328,8 +327,8 @@ def install(
 
     # Set resources_dir default to state file's directory (absolute)
     # User-specified values are passed through as-is
-    if 'resources_dir' not in config:
-        config['resources_dir'] = str(state_file.resolve().parent)
+    if "resources_dir" not in config:
+        config["resources_dir"] = str(state_file.resolve().parent)
 
     typer.echo(f"Found {len(state_entries)} installation step(s)")
     if artifacts_only:
@@ -405,12 +404,9 @@ def install(
             typer.echo(f"   Working directory: {ansible_dir}")
             typer.echo(f"   Inventory: {inventory_dir / 'hosts'}")
             typer.echo("   Inventory contents:")
-            typer.echo((inventory_dir / 'hosts').read_text())
+            typer.echo((inventory_dir / "hosts").read_text())
 
-        result = _run_with_status(
-            ansible_dir, cmdline, state_entries, verbose,
-            check=check, become_password=become_password
-        )
+        result = _run_with_status(ansible_dir, cmdline, state_entries, verbose, check=check, become_password=become_password)
 
         if result.status == "successful":
             typer.echo()

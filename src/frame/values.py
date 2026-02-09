@@ -92,9 +92,9 @@ class ShellReturnCodeGetter(ValueBase, name="shell_result"):
 
     async def get(self):
         try:
-            result_str = await run_command(self.command, sudo=self.sudo)
+            await run_command(self.command, sudo=self.sudo)
             return True
-        except ShellError as e:
+        except ShellError:
             return False
 
 
@@ -158,7 +158,7 @@ class Tail(ValueBase, name="tail"):
 
         if mod_time > self.mod_time:
             self.mod_time = mod_time
-            self.last_value = tail_lines(self.path, self.lines)
+            self.last_value = tail_lines(str(self.path), self.lines)
 
         return self.last_value
 

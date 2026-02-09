@@ -11,15 +11,20 @@ Tests all effect components:
 - Effects as observables (subscribing to state changes)
 """
 
-import pytest
 import tempfile
 import os
 from frame.action_observable import (
-    Model, PropertyObserver, PropertyAction, ReplaceAction,
-    ShellEffect, ShellEffectSettings,
-    FileWriteEffect, FileWriteEffectSettings,
-    SequenceEffect, SequenceEffectSettings,
-    make_effect
+    Model,
+    PropertyObserver,
+    PropertyAction,
+    ReplaceAction,
+    ShellEffect,
+    ShellEffectSettings,
+    FileWriteEffect,
+    FileWriteEffectSettings,
+    SequenceEffect,
+    SequenceEffectSettings,
+    make_effect,
 )
 
 
@@ -36,13 +41,11 @@ class TestShellEffect:
 
     def test_shell_effect_with_template(self):
         """ShellEffect uses Jinja2 templates in commands."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            settings = ShellEffectSettings(
-                command=f'echo "{{{{ message }}}}" > {temp_path}'
-            )
+            settings = ShellEffectSettings(command=f'echo "{{{{ message }}}}" > {temp_path}')
             effect = ShellEffect(settings)
 
             # Call effect with dict context
@@ -65,10 +68,7 @@ class TestShellEffect:
 
     def test_shell_effect_from_make_effect(self):
         """make_effect creates ShellEffect from dict."""
-        effect, _ = make_effect({
-            "type": "shell",
-            "command": "echo registry test"
-        })
+        effect, _ = make_effect({"type": "shell", "command": "echo registry test"})
 
         assert isinstance(effect, ShellEffect)
         effect("trigger")
@@ -79,14 +79,11 @@ class TestFileWriteEffect:
 
     def test_file_write_effect_basic(self):
         """FileWriteEffect writes to file with template."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            settings = FileWriteEffectSettings(
-                path=temp_path,
-                template="Message: {{ msg }}"
-            )
+            settings = FileWriteEffectSettings(path=temp_path, template="Message: {{ msg }}")
             effect = FileWriteEffect(settings)
 
             # Call effect with context
@@ -101,16 +98,12 @@ class TestFileWriteEffect:
 
     def test_file_write_effect_append_mode(self):
         """FileWriteEffect can append to files."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             f.write("Line 1\n")
             temp_path = f.name
 
         try:
-            settings = FileWriteEffectSettings(
-                path=temp_path,
-                template="Line 2\n",
-                append=True
-            )
+            settings = FileWriteEffectSettings(path=temp_path, template="Line 2\n", append=True)
             effect = FileWriteEffect(settings)
 
             effect({})
@@ -125,14 +118,11 @@ class TestFileWriteEffect:
 
     def test_file_write_effect_non_dict_value(self):
         """FileWriteEffect handles non-dict values."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            settings = FileWriteEffectSettings(
-                path=temp_path,
-                template="Value: {{ value }}"
-            )
+            settings = FileWriteEffectSettings(path=temp_path, template="Value: {{ value }}")
             effect = FileWriteEffect(settings)
 
             # Call with simple value
@@ -146,15 +136,11 @@ class TestFileWriteEffect:
 
     def test_file_write_effect_from_make_effect(self):
         """make_effect creates FileWriteEffect from dict."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            effect, _ = make_effect({
-                "type": "file_write",
-                "path": temp_path,
-                "template": "Test: {{ x }}"
-            })
+            effect, _ = make_effect({"type": "file_write", "path": temp_path, "template": "Test: {{ x }}"})
 
             assert isinstance(effect, FileWriteEffect)
             effect({"x": "registry"})
@@ -170,24 +156,12 @@ class TestSequenceEffect:
 
     def test_sequence_effect_multiple_effects(self):
         """SequenceEffect executes multiple effects in order."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
             settings = SequenceEffectSettings(
-                effects=[
-                    {
-                        "type": "file_write",
-                        "path": temp_path,
-                        "template": "First\n"
-                    },
-                    {
-                        "type": "file_write",
-                        "path": temp_path,
-                        "template": "Second\n",
-                        "append": True
-                    }
-                ]
+                effects=[{"type": "file_write", "path": temp_path, "template": "First\n"}, {"type": "file_write", "path": temp_path, "template": "Second\n", "append": True}]
             )
             effect = SequenceEffect(settings)
 
@@ -203,20 +177,11 @@ class TestSequenceEffect:
 
     def test_sequence_effect_from_make_effect(self):
         """make_effect creates SequenceEffect from dict."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            effect, _ = make_effect({
-                "type": "sequence",
-                "effects": [
-                    {
-                        "type": "file_write",
-                        "path": temp_path,
-                        "template": "Sequence test"
-                    }
-                ]
-            })
+            effect, _ = make_effect({"type": "sequence", "effects": [{"type": "file_write", "path": temp_path, "template": "Sequence test"}]})
 
             assert isinstance(effect, SequenceEffect)
             effect({})
@@ -232,7 +197,7 @@ class TestEffectsAsObservables:
 
     def test_effect_triggered_by_model_change(self):
         """Effect executes when model state changes."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
@@ -240,12 +205,7 @@ class TestEffectsAsObservables:
             model = Model({"count": 0})
 
             # Create effect
-            effect = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path,
-                    template="Count: {{ count }}"
-                )
-            )
+            effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="Count: {{ count }}"))
 
             # Subscribe effect to model changes
             model.subscribe(effect)
@@ -262,7 +222,7 @@ class TestEffectsAsObservables:
 
     def test_effect_with_property_observer(self):
         """Effect triggered by PropertyObserver lens."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
@@ -270,12 +230,7 @@ class TestEffectsAsObservables:
             model = Model({"value": 0, "other": "ignored"})
 
             # Create effect
-            effect = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path,
-                    template="Value: {{ value }}"
-                )
-            )
+            effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="Value: {{ value }}"))
 
             # Use PropertyObserver to extract specific field
             prop_obs = PropertyObserver("value")
@@ -301,27 +256,17 @@ class TestEffectsAsObservables:
 
     def test_multiple_effects_on_same_model(self):
         """Multiple effects can subscribe to the same model."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_1.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_1.txt") as f:
             temp_path1 = f.name
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='_2.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix="_2.txt") as f:
             temp_path2 = f.name
 
         try:
             model = Model({"status": "unknown"})
 
             # Create two effects
-            effect1 = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path1,
-                    template="Effect1: {{ status }}"
-                )
-            )
-            effect2 = FileWriteEffect(
-                FileWriteEffectSettings(
-                    path=temp_path2,
-                    template="Effect2: {{ status }}"
-                )
-            )
+            effect1 = FileWriteEffect(FileWriteEffectSettings(path=temp_path1, template="Effect1: {{ status }}"))
+            effect2 = FileWriteEffect(FileWriteEffectSettings(path=temp_path2, template="Effect2: {{ status }}"))
 
             # Both subscribe to model
             model.subscribe(effect1)
@@ -347,26 +292,18 @@ class TestEffectRegistry:
 
     def test_make_effect_from_dict(self):
         """make_effect creates effects from dict config."""
-        effect, settings = make_effect({
-            "type": "shell",
-            "command": "echo test"
-        })
+        effect, settings = make_effect({"type": "shell", "command": "echo test"})
 
         assert isinstance(effect, ShellEffect)
         assert settings["command"] == "echo test"
 
     def test_make_effect_settings_dataclass_construction(self):
         """make_effect constructs settings dataclass from dict."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
             temp_path = f.name
 
         try:
-            effect, _ = make_effect({
-                "type": "file_write",
-                "path": temp_path,
-                "template": "{{ x }}",
-                "append": True
-            })
+            effect, _ = make_effect({"type": "file_write", "path": temp_path, "template": "{{ x }}", "append": True})
 
             assert isinstance(effect, FileWriteEffect)
             assert effect.path == temp_path

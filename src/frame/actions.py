@@ -51,7 +51,7 @@ def make_action(config: "Config", name: str, settings: str | Dict[str, Any]) -> 
 # Implementations
 ############################################################
 class ShellAction(ActionBase, name="shell"):
-    def __init__(self, settings: Dict[str, Any], config:"Config"):
+    def __init__(self, settings: Dict[str, Any], config: "Config"):
         super().__init__(settings)
         self.command = settings["cmd"]
         self.parser, _ = make_parser(settings.get("parser", "string"))
@@ -91,7 +91,7 @@ class NestedAccessor:
             if key == name:
                 return value
             if key.startswith(prefix):
-                suffix = key[len(prefix) :]
+                suffix = key[len(prefix) :]  # noqa: E203
                 nested_dict[suffix] = value
 
         # If we found nested keys, return a new accessor for them
@@ -180,7 +180,7 @@ class SequenceAction(ActionBase, name="sequence"):
 
 
 class OSCAction(ActionBase, name="osc"):
-    def __init__(self, settings: Dict[str, Any], config:"Config"):
+    def __init__(self, settings: Dict[str, Any], config: "Config"):
         super().__init__(settings)
         self.path = settings["path"]
         self.args = settings.get("args", [])
@@ -198,7 +198,7 @@ class OSCAction(ActionBase, name="osc"):
 
 
 class FileWriteAction(ActionBase, name="file_write"):
-    def __init__(self, settings: Dict[str, Any], config:"Config"):
+    def __init__(self, settings: Dict[str, Any], config: "Config"):
         super().__init__(settings)
         self.path = Path(settings["path"]).expanduser().absolute()
         self.template_str = settings["template"]
@@ -209,7 +209,7 @@ class FileWriteAction(ActionBase, name="file_write"):
             self.renderer, _ = make_renderer(config, settings["renderer"])
 
     def _write_sync(self, content: str):
-        mode = 'a' if self.append else 'w'
+        mode = "a" if self.append else "w"
         with open(self.path, mode) as f:
             f.write(content)
 

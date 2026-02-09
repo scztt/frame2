@@ -9,13 +9,20 @@ Shows how Effects work as outputs in the reactive system:
 """
 
 from frame.action_observable import (
-    Model, PropertyAction, ReplaceAction,
-    PropertyObserver, ChangedObserver,
-    ShellSource, ShellSourceSettings,
-    FileWriteEffect, FileWriteEffectSettings,
-    ShellEffect, ShellEffectSettings,
-    SequenceEffect, SequenceEffectSettings,
-    make_effect
+    Model,
+    PropertyAction,
+    ReplaceAction,
+    PropertyObserver,
+    ChangedObserver,
+    ShellSource,
+    ShellSourceSettings,
+    FileWriteEffect,
+    FileWriteEffectSettings,
+    ShellEffect,
+    ShellEffectSettings,
+    SequenceEffect,
+    SequenceEffectSettings,
+    make_effect,
 )
 import tempfile
 import os
@@ -29,16 +36,11 @@ print("-" * 50)
 model = Model({"temperature": 20})
 
 # Create a file to write to
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     temp_path = f.name
 
 # Create effect that writes temperature to file
-effect = FileWriteEffect(
-    FileWriteEffectSettings(
-        path=temp_path,
-        template="Current temperature: {{ temperature }}°C\n"
-    )
-)
+effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="Current temperature: {{ temperature }}°C\n"))
 
 # Subscribe effect to model
 model.subscribe(effect)
@@ -59,23 +61,20 @@ print("-" * 50)
 
 model = Model({"cpu": 10, "memory": 50, "disk": 80})
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     temp_path = f.name
 
 # Effect that only cares about CPU
-effect = FileWriteEffect(
-    FileWriteEffectSettings(
-        path=temp_path,
-        template="CPU: {{ value }}%\n"
-    )
-)
+effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="CPU: {{ value }}%\n"))
 
 # PropertyObserver extracts just CPU value
 cpu_observer = PropertyObserver("cpu")
 
+
 # Wrap effect to convert single value to dict
 def wrap_for_effect(value):
     effect({"value": value})
+
 
 cpu_observer.subscribe(wrap_for_effect)
 model.subscribe(cpu_observer)
@@ -95,24 +94,14 @@ print("-" * 50)
 
 model = Model({"status": "idle"})
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     log_path = f.name
 
 # Effect 1: Write to file
-file_effect = FileWriteEffect(
-    FileWriteEffectSettings(
-        path=log_path,
-        template="[LOG] Status changed to: {{ status }}\n",
-        append=True
-    )
-)
+file_effect = FileWriteEffect(FileWriteEffectSettings(path=log_path, template="[LOG] Status changed to: {{ status }}\n", append=True))
 
 # Effect 2: Print to console (using shell echo)
-console_effect = ShellEffect(
-    ShellEffectSettings(
-        command='echo "Status: {{ status }}"'
-    )
-)
+console_effect = ShellEffect(ShellEffectSettings(command='echo "Status: {{ status }}"'))
 
 # Both subscribe to model
 model.subscribe(file_effect)
@@ -137,23 +126,19 @@ print("-" * 50)
 
 model = Model({"counter": 0})
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     temp_path = f.name
 
-effect = FileWriteEffect(
-    FileWriteEffectSettings(
-        path=temp_path,
-        template="Counter: {{ value }}\n",
-        append=True
-    )
-)
+effect = FileWriteEffect(FileWriteEffectSettings(path=temp_path, template="Counter: {{ value }}\n", append=True))
 
 # Chain: PropertyObserver -> ChangedObserver -> Effect
 prop_obs = PropertyObserver("counter")
 changed_obs = ChangedObserver()
 
+
 def wrap_effect(value):
     effect({"value": value})
+
 
 prop_obs >> changed_obs
 changed_obs.subscribe(wrap_effect)
@@ -178,25 +163,11 @@ os.unlink(temp_path)
 print("Example 5: SequenceEffect (chain multiple effects)")
 print("-" * 50)
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     temp_path = f.name
 
 # Sequence: write to file, then display it
-sequence = SequenceEffect(
-    SequenceEffectSettings(
-        effects=[
-            {
-                "type": "file_write",
-                "path": temp_path,
-                "template": "Message: {{ msg }}\n"
-            },
-            {
-                "type": "shell",
-                "command": f"cat {temp_path}"
-            }
-        ]
-    )
-)
+sequence = SequenceEffect(SequenceEffectSettings(effects=[{"type": "file_write", "path": temp_path, "template": "Message: {{ msg }}\n"}, {"type": "shell", "command": f"cat {temp_path}"}]))
 
 print("Executing sequence effect:")
 sequence({"msg": "Hello from SequenceEffect!"})
@@ -208,15 +179,11 @@ print()
 print("Example 6: Creating effects from dict config")
 print("-" * 50)
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     temp_path = f.name
 
 # This dict could come from YAML
-effect_config = {
-    "type": "file_write",
-    "path": temp_path,
-    "template": "Config-based effect: {{ data }}"
-}
+effect_config = {"type": "file_write", "path": temp_path, "template": "Config-based effect: {{ data }}"}
 
 effect, _ = make_effect(effect_config)
 effect({"data": "Works!"})
@@ -231,7 +198,7 @@ print()
 print("Example 7: Complete reactive pipeline (Source -> Model -> Effect)")
 print("-" * 50)
 
-with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.txt') as f:
+with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".txt") as f:
     log_path = f.name
 
 # Create model
@@ -241,17 +208,10 @@ model = Model({"command_output": ""})
 source = ShellSource(ShellSourceSettings(command="date"))
 
 # Connect source to model
-source.subscribe(lambda result: model.emit(
-    PropertyAction("command_output", ReplaceAction(result))
-))
+source.subscribe(lambda result: model.emit(PropertyAction("command_output", ReplaceAction(result))))
 
 # Create effect that logs to file
-effect = FileWriteEffect(
-    FileWriteEffectSettings(
-        path=log_path,
-        template="Command executed at: {{ command_output }}\n"
-    )
-)
+effect = FileWriteEffect(FileWriteEffectSettings(path=log_path, template="Command executed at: {{ command_output }}\n"))
 
 # Connect model to effect
 model.subscribe(effect)

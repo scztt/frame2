@@ -1,7 +1,11 @@
-from typing import Dict, Any, List, Optional
+from __future__ import annotations
+
+from typing import Dict, Any, List, Optional, TYPE_CHECKING
 from frame.registry import TypeRegistry
 from frame.shell import run_command
-import asyncio
+
+if TYPE_CHECKING:
+    from frame.model import Config
 
 
 class StateBase:
@@ -44,7 +48,7 @@ class StateBase:
         """
         raise NotImplementedError("Subclasses must implement this method")
 
-    async def ensure(self, dependency_resolver: Optional['DependencyResolver'] = None) -> bool:
+    async def ensure(self, dependency_resolver: Optional["DependencyResolver"] = None) -> bool:
         """
         Attempt to make this state true/satisfied.
 
@@ -97,6 +101,7 @@ def make_state(config: "Config", name: str, settings: str | Dict[str, Any]) -> S
 ############################################################
 # Dependency Resolution
 ############################################################
+
 
 class DependencyResolver:
     """
@@ -160,6 +165,7 @@ class DependencyResolver:
 ############################################################
 # Implementations
 ############################################################
+
 
 class ShellState(StateBase, name="shell"):
     """

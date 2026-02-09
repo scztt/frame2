@@ -9,17 +9,25 @@ Tests all components:
 - Integration (full target example)
 """
 
-import pytest
 import tempfile
 import os
 from frame.action_observable import (
-    ReplaceAction, FuncAction, PropertyAction,
-    Model, PropertyObserver, ChangedObserver, LogObserver,
-    ShellSource, ShellSourceSettings,
-    TailSource, TailSourceSettings,
-    ScreenshotSource, ScreenshotSourceSettings,
-    OSCSource, OSCSourceSettings,
-    make_source
+    ReplaceAction,
+    FuncAction,
+    PropertyAction,
+    Model,
+    PropertyObserver,
+    ChangedObserver,
+    LogObserver,
+    ShellSource,
+    ShellSourceSettings,
+    TailSource,
+    TailSourceSettings,
+    ScreenshotSource,
+    ScreenshotSourceSettings,
+    OSCSource,
+    OSCSourceSettings,
+    make_source,
 )
 
 
@@ -278,10 +286,7 @@ class TestShellSource:
 
     def test_shell_source_with_json_parser(self):
         """ShellSource applies JSON parser to output."""
-        settings = ShellSourceSettings(
-            command='echo \'{"value": 42}\'',
-            parser="json"
-        )
+        settings = ShellSourceSettings(command="echo '{\"value\": 42}'", parser="json")
         shell = ShellSource(settings)
         received = []
 
@@ -294,14 +299,7 @@ class TestShellSource:
     def test_shell_source_with_regex_parser(self):
         """ShellSource applies regex parser to extract values."""
         # Command outputs: "Temperature: 23.5°C"
-        settings = ShellSourceSettings(
-            command='echo "Temperature: 23.5°C"',
-            parser={
-                "type": "regex",
-                "pattern": r"Temperature: ([\d.]+)",
-                "group": 1
-            }
-        )
+        settings = ShellSourceSettings(command='echo "Temperature: 23.5°C"', parser={"type": "regex", "pattern": r"Temperature: ([\d.]+)", "group": 1})
         shell = ShellSource(settings)
         received = []
 
@@ -338,7 +336,7 @@ class TestTailSource:
     def test_tail_source_reads_file(self):
         """TailSource reads file tail and notifies subscribers."""
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".log") as f:
             f.write("line 1\n")
             f.write("line 2\n")
             f.write("line 3\n")
@@ -365,7 +363,7 @@ class TestTailSource:
     def test_tail_source_caches_on_no_change(self):
         """TailSource returns cached value if file hasn't changed."""
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".log") as f:
             f.write("initial content\n")
             temp_path = f.name
 
@@ -394,7 +392,7 @@ class TestTailSource:
         import time
 
         # Create a temporary file
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".log") as f:
             f.write("initial content\n")
             temp_path = f.name
 
@@ -414,7 +412,7 @@ class TestTailSource:
             time.sleep(0.01)
 
             # Modify the file
-            with open(temp_path, 'a') as f:
+            with open(temp_path, "a") as f:
                 f.write("new content\n")
 
             # Second run - should detect change and notify
@@ -428,7 +426,7 @@ class TestTailSource:
     def test_tail_source_limits_lines(self):
         """TailSource respects line limit."""
         # Create a temporary file with many lines
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False, suffix=".log") as f:
             for i in range(100):
                 f.write(f"line {i}\n")
             temp_path = f.name
@@ -472,10 +470,7 @@ class TestScreenshotSource:
 
     def test_screenshot_source_region_settings(self):
         """ScreenshotSource initializes with region settings."""
-        settings = ScreenshotSourceSettings(
-            x=100, y=200, width=800, height=600,
-            sudo=False, id="custom_screenshot"
-        )
+        settings = ScreenshotSourceSettings(x=100, y=200, width=800, height=600, sudo=False, id="custom_screenshot")
         screenshot = ScreenshotSource(settings)
 
         assert screenshot.x == 100
@@ -501,10 +496,7 @@ class TestOSCSource:
 
     def test_osc_source_initialization(self):
         """OSCSource initializes with correct settings."""
-        settings = OSCSourceSettings(
-            port=9000,
-            address="/test/value"
-        )
+        settings = OSCSourceSettings(port=9000, address="/test/value")
         osc = OSCSource(settings)
 
         assert osc.port == 9000
@@ -516,22 +508,14 @@ class TestOSCSource:
 
     def test_osc_source_custom_ip(self):
         """OSCSource accepts custom IP address."""
-        settings = OSCSourceSettings(
-            port=9000,
-            address="/test/value",
-            ip="127.0.0.1"
-        )
+        settings = OSCSourceSettings(port=9000, address="/test/value", ip="127.0.0.1")
         osc = OSCSource(settings)
 
         assert osc.ip == "127.0.0.1"
 
     def test_osc_source_with_value_index(self):
         """OSCSource can extract single value at index."""
-        settings = OSCSourceSettings(
-            port=9000,
-            address="/test/value",
-            value_index=0
-        )
+        settings = OSCSourceSettings(port=9000, address="/test/value", value_index=0)
         osc = OSCSource(settings)
 
         assert osc.value_index == 0
@@ -540,10 +524,7 @@ class TestOSCSource:
         """OSCSource.run() starts the server in background thread."""
         import time
 
-        settings = OSCSourceSettings(
-            port=9001,  # Use different port for each test
-            address="/test/run"
-        )
+        settings = OSCSourceSettings(port=9001, address="/test/run")  # Use different port for each test
         osc = OSCSource(settings)
 
         try:
@@ -570,11 +551,7 @@ class TestOSCSource:
         import time
         from pythonosc.udp_client import SimpleUDPClient
 
-        settings = OSCSourceSettings(
-            port=9002,
-            address="/test/indexed",
-            value_index=0  # Extract first value
-        )
+        settings = OSCSourceSettings(port=9002, address="/test/indexed", value_index=0)  # Extract first value
         osc = OSCSource(settings)
         received = []
 
@@ -604,11 +581,7 @@ class TestOSCSource:
         import time
         from pythonosc.udp_client import SimpleUDPClient
 
-        settings = OSCSourceSettings(
-            port=9003,
-            address="/test/array",
-            value_index=None  # Return all values
-        )
+        settings = OSCSourceSettings(port=9003, address="/test/array", value_index=None)  # Return all values
         osc = OSCSource(settings)
         received = []
 
@@ -637,11 +610,7 @@ class TestOSCSource:
         import time
         from pythonosc.udp_client import SimpleUDPClient
 
-        settings = OSCSourceSettings(
-            port=9004,
-            address="/test/multi",
-            value_index=0
-        )
+        settings = OSCSourceSettings(port=9004, address="/test/multi", value_index=0)
         osc = OSCSource(settings)
         received1 = []
         received2 = []
@@ -669,10 +638,7 @@ class TestOSCSource:
         """OSCSource.stop() shuts down the server."""
         import time
 
-        settings = OSCSourceSettings(
-            port=9005,
-            address="/test/stop"
-        )
+        settings = OSCSourceSettings(port=9005, address="/test/stop")
         osc = OSCSource(settings)
 
         # Start server
@@ -695,11 +661,7 @@ class TestOSCSource:
         import time
         from pythonosc.udp_client import SimpleUDPClient
 
-        settings = OSCSourceSettings(
-            port=9006,
-            address="/test/missing",
-            value_index=5  # Request index that won't exist
-        )
+        settings = OSCSourceSettings(port=9006, address="/test/missing", value_index=5)  # Request index that won't exist
         osc = OSCSource(settings)
         received = []
 
@@ -726,10 +688,7 @@ class TestOSCSource:
         """Calling run() multiple times doesn't start multiple servers."""
         import time
 
-        settings = OSCSourceSettings(
-            port=9007,
-            address="/test/idempotent"
-        )
+        settings = OSCSourceSettings(port=9007, address="/test/idempotent")
         osc = OSCSource(settings)
 
         try:
@@ -759,10 +718,7 @@ class TestSourceRegistry:
 
     def test_make_source_shell_from_dict(self):
         """make_source creates ShellSource from dict."""
-        source, settings = make_source({
-            "type": "shell",
-            "command": "echo test"
-        })
+        source, settings = make_source({"type": "shell", "command": "echo test"})
 
         assert isinstance(source, ShellSource)
         assert source.command == "echo test"
@@ -770,11 +726,7 @@ class TestSourceRegistry:
 
     def test_make_source_shell_with_parser(self):
         """make_source creates ShellSource with parser from dict."""
-        source, settings = make_source({
-            "type": "shell",
-            "command": "echo '{\"value\": 42}'",
-            "parser": "json"
-        })
+        source, settings = make_source({"type": "shell", "command": "echo '{\"value\": 42}'", "parser": "json"})
 
         assert isinstance(source, ShellSource)
         assert source.parser is not None
@@ -783,16 +735,12 @@ class TestSourceRegistry:
 
     def test_make_source_tail_from_dict(self):
         """make_source creates TailSource from dict."""
-        with tempfile.NamedTemporaryFile(mode='w', delete=False) as f:
+        with tempfile.NamedTemporaryFile(mode="w", delete=False) as f:
             f.write("test content\n")
             temp_path = f.name
 
         try:
-            source, settings = make_source({
-                "type": "tail",
-                "path": temp_path,
-                "lines": 50
-            })
+            source, settings = make_source({"type": "tail", "path": temp_path, "lines": 50})
 
             assert isinstance(source, TailSource)
             assert source.path == temp_path
@@ -802,14 +750,7 @@ class TestSourceRegistry:
 
     def test_make_source_screenshot_from_dict(self):
         """make_source creates ScreenshotSource from dict."""
-        source, settings = make_source({
-            "type": "screenshot",
-            "x": 100,
-            "y": 200,
-            "width": 800,
-            "height": 600,
-            "id": "test_screenshot"
-        })
+        source, settings = make_source({"type": "screenshot", "x": 100, "y": 200, "width": 800, "height": 600, "id": "test_screenshot"})
 
         assert isinstance(source, ScreenshotSource)
         assert source.x == 100
@@ -829,11 +770,7 @@ class TestSourceRegistry:
 
     def test_make_source_osc_from_dict(self):
         """make_source creates OSCSource from dict."""
-        source, settings = make_source({
-            "type": "osc",
-            "port": 8000,
-            "address": "/test/value"
-        })
+        source, settings = make_source({"type": "osc", "port": 8000, "address": "/test/value"})
 
         assert isinstance(source, OSCSource)
         assert source.port == 8000
@@ -842,13 +779,7 @@ class TestSourceRegistry:
 
     def test_make_source_osc_with_all_settings(self):
         """make_source creates OSCSource with all settings from dict."""
-        source, settings = make_source({
-            "type": "osc",
-            "port": 9000,
-            "address": "/control/volume",
-            "ip": "127.0.0.1",
-            "value_index": 0
-        })
+        source, settings = make_source({"type": "osc", "port": 9000, "address": "/control/volume", "ip": "127.0.0.1", "value_index": 0})
 
         assert isinstance(source, OSCSource)
         assert source.port == 9000
@@ -858,11 +789,7 @@ class TestSourceRegistry:
 
     def test_make_source_settings_dataclass_construction(self):
         """make_source constructs settings dataclass from dict."""
-        source, settings = make_source({
-            "type": "shell",
-            "command": "date",
-            "sudo": True
-        })
+        source, settings = make_source({"type": "shell", "command": "date", "sudo": True})
 
         # Verify the settings object was constructed properly
         assert isinstance(source, ShellSource)
@@ -883,15 +810,13 @@ class TestIntegration:
         - LogObserver prints to console
         """
         # Model with one field
-        model = Model({'date': None})
+        model = Model({"date": None})
 
         # Shell source
-        shell = ShellSource(ShellSourceSettings(command='date'))
+        shell = ShellSource(ShellSourceSettings(command="date"))
 
         # Connect: shell -> PropertyAction -> model
-        shell.subscribe(lambda result: model.emit(
-            PropertyAction("date", ReplaceAction(result))
-        ))
+        shell.subscribe(lambda result: model.emit(PropertyAction("date", ReplaceAction(result))))
 
         # Watch model: PropertyObserver >> ChangedObserver >> LogObserver
         prop_obs = PropertyObserver("date")
@@ -905,24 +830,24 @@ class TestIntegration:
         shell.run()
 
         # Verify state updated
-        assert model.state['date'] is not None
-        assert len(model.state['date']) > 0
+        assert model.state["date"] is not None
+        assert len(model.state["date"]) > 0
 
         # Verify logged to console
         captured = capsys.readouterr()
         assert "Log:" in captured.out
-        assert model.state['date'] in captured.out
+        assert model.state["date"] in captured.out
 
     def test_model_with_shell_multiple_updates(self, capsys):
         """Test multiple shell updates to model."""
-        model = Model({'counter': 0})
+        model = Model({"counter": 0})
 
         # Manually trigger updates
         def update_counter(value):
-            current = model.state.get('counter', 0)
-            model.emit(PropertyAction('counter', ReplaceAction(current + 1)))
+            current = model.state.get("counter", 0)
+            model.emit(PropertyAction("counter", ReplaceAction(current + 1)))
 
-        prop_obs = PropertyObserver('counter')
+        prop_obs = PropertyObserver("counter")
         log_obs = LogObserver(prefix="Counter")
 
         prop_obs >> log_obs
@@ -933,7 +858,7 @@ class TestIntegration:
         update_counter(None)
         update_counter(None)
 
-        assert model.state['counter'] == 3
+        assert model.state["counter"] == 3
 
         captured = capsys.readouterr()
         assert "Counter: 1" in captured.out
@@ -942,11 +867,11 @@ class TestIntegration:
 
     def test_full_pipeline_with_transformation(self):
         """Test complete pipeline with value transformation."""
-        model = Model({'value': 0})
+        model = Model({"value": 0})
         received_values = []
 
         # Observer chain that transforms and collects values
-        prop_obs = PropertyObserver('value')
+        prop_obs = PropertyObserver("value")
         changed_obs = ChangedObserver()
 
         prop_obs >> changed_obs
@@ -954,10 +879,10 @@ class TestIntegration:
         model.subscribe(prop_obs)
 
         # Emit various actions
-        model.emit(PropertyAction('value', ReplaceAction(10)))
-        model.emit(PropertyAction('value', ReplaceAction(10)))  # Duplicate
-        model.emit(PropertyAction('value', FuncAction(lambda x: x * 2)))
-        model.emit(PropertyAction('value', FuncAction(lambda x: x + 5)))
+        model.emit(PropertyAction("value", ReplaceAction(10)))
+        model.emit(PropertyAction("value", ReplaceAction(10)))  # Duplicate
+        model.emit(PropertyAction("value", FuncAction(lambda x: x * 2)))
+        model.emit(PropertyAction("value", FuncAction(lambda x: x + 5)))
 
         assert received_values == [10, 20, 25]
-        assert model.state['value'] == 25
+        assert model.state["value"] == 25

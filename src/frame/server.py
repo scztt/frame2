@@ -66,7 +66,8 @@ def _is_loaded() -> tuple[bool, Optional[int]]:
     try:
         result = subprocess.run(
             ["launchctl", "list", SERVICE_NAME],
-            capture_output=True, text=True,
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             for line in result.stdout.strip().splitlines():
@@ -92,6 +93,7 @@ def _stop_service() -> bool:
 
 
 # --- Foreground command (registered on parent app via cli.py) ---
+
 
 def _open_browser(host: str, port: int):
     url = f"http://{'localhost' if host == '0.0.0.0' else host}:{port}"
@@ -121,6 +123,7 @@ def run_server(
 
 
 # --- Subcommands ---
+
 
 @server_app.command()
 def start(

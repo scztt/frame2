@@ -11,14 +11,12 @@ for simpler configs.
 """
 
 from typing import Any, Dict, List, Tuple
-from frame.action_observable import (
-    Model, PropertyAction, ReplaceAction,
-    make_source, make_effect
-)
+from frame.action_observable import Model, PropertyAction, ReplaceAction, make_source, make_effect
 
 
 class ConfigError(Exception):
     """Raised when config is invalid."""
+
     pass
 
 
@@ -83,10 +81,7 @@ class ReactiveConfig:
 
                 # Validate: target must be string or list, not object
                 if isinstance(target, dict):
-                    raise ConfigError(
-                        f"Source '{source_name}' has object as target - "
-                        f"only model items can have inline objects"
-                    )
+                    raise ConfigError(f"Source '{source_name}' has object as target - " f"only model items can have inline objects")
 
                 # Handle single target or list of targets
                 if isinstance(target, str):
@@ -94,9 +89,7 @@ class ReactiveConfig:
                 elif isinstance(target, list):
                     targets = target
                 else:
-                    raise ConfigError(
-                        f"Source '{source_name}' target must be string or list, got {type(target)}"
-                    )
+                    raise ConfigError(f"Source '{source_name}' target must be string or list, got {type(target)}")
 
                 # Store connections for each target
                 for target_name in targets:
@@ -126,10 +119,7 @@ class ReactiveConfig:
 
                 # Validate: inline source cannot have target
                 if isinstance(source_def, dict) and "target" in source_def:
-                    raise ConfigError(
-                        f"Model item '{field_name}' has inline source with 'target' field - "
-                        f"this conflicts with the model item being the implicit target"
-                    )
+                    raise ConfigError(f"Model item '{field_name}' has inline source with 'target' field - " f"this conflicts with the model item being the implicit target")
 
                 # Create inline source
                 inline_source_name = f"{field_name}(source)"
@@ -152,10 +142,7 @@ class ReactiveConfig:
 
                     # Validate: inline effect cannot have source
                     if "source" in effect_def:
-                        raise ConfigError(
-                            f"Model item '{field_name}' has inline effect with 'source' field - "
-                            f"this conflicts with the model item being the implicit source"
-                        )
+                        raise ConfigError(f"Model item '{field_name}' has inline effect with 'source' field - " f"this conflicts with the model item being the implicit source")
 
                     # Create inline effect
                     inline_effect_name = f"{field_name}(effect)"
@@ -165,9 +152,7 @@ class ReactiveConfig:
                     # Connect this model field to inline effect
                     self.connections.append(("model", field_name, inline_effect_name))
                 else:
-                    raise ConfigError(
-                        f"Model item '{field_name}' effect must be @reference or dict, got {type(effect_def)}"
-                    )
+                    raise ConfigError(f"Model item '{field_name}' effect must be @reference or dict, got {type(effect_def)}")
 
     def _parse_effects(self):
         """Parse effects section and build effects catalog."""
@@ -182,10 +167,7 @@ class ReactiveConfig:
                     model_item = source_ref
                     self.connections.append(("model", model_item, effect_name))
                 elif isinstance(source_ref, dict):
-                    raise ConfigError(
-                        f"Effect '{effect_name}' has inline source object - "
-                        f"effects section cannot contain nested objects"
-                    )
+                    raise ConfigError(f"Effect '{effect_name}' has inline source object - " f"effects section cannot contain nested objects")
                 elif isinstance(source_ref, list):
                     # List of model fields
                     for field in source_ref:

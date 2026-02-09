@@ -10,7 +10,7 @@ This script loads example_config_new.yaml and demonstrates:
 
 import yaml
 from pathlib import Path
-from frame.config import load_config, ReactiveConfig
+from frame.config import ReactiveConfig
 from frame.action_observable import PropertyAction, ReplaceAction
 
 print("=" * 80)
@@ -89,7 +89,8 @@ print("\n" + "=" * 80)
 print("Summary")
 print("=" * 80)
 
-print("""
+print(
+    """
 ✅ Successfully loaded comprehensive YAML config with:
 
 1. Three Sections:
@@ -120,13 +121,15 @@ print("""
    - Null/default values
 
 The config system enables fully declarative reactive programming!
-""")
+"""
+)
 
 print("\n" + "=" * 80)
 print("Next Steps")
 print("=" * 80)
 
-print("""
+print(
+    """
 To see the full reactive system in action:
 
 1. Run sources to populate model:
@@ -138,4 +141,5 @@ To see the full reactive system in action:
 3. Effects automatically trigger on state changes!
 
 Check /tmp/ for generated log files and outputs.
-""")
+"""
+)

@@ -5,19 +5,18 @@ Effects are side-effect producers (outputs) that are triggered by observable cha
 Each effect has a Settings dataclass for configuration and is callable to execute the effect.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 from dataclasses import dataclass
 import asyncio
 import jinja2
 
 from frame.registry import TypeRegistry
-from frame.renderers import make_renderer, RendererBase
+from frame.renderers import make_renderer
 from frame.shell import run_command
-from frame.parsers import make_parser
 from pythonosc import udp_client
 
-
 # === Base and Registry ===
+
 
 class EffectBase:
     """Base class for all effects."""
@@ -61,9 +60,11 @@ def make_effect(settings: Dict[str, Any] | str) -> Tuple[EffectBase, Dict[str, A
 
 # === ShellEffect ===
 
+
 @dataclass
 class ShellEffectSettings:
     """Settings for ShellEffect."""
+
     command: Union[str, List[str]]
     sudo: bool = False
     renderer: Optional[str | Dict[str, Any]] = None
@@ -107,9 +108,9 @@ class ShellEffect(EffectBase, name="shell", settings=ShellEffectSettings):
         """
         # Apply renderer if configured
         if self.renderer is not None:
-            rendered_value = self.renderer(value)
+            _rendered_value = self.renderer(value)  # noqa: F841
         else:
-            rendered_value = str(value) if not isinstance(value, str) else value
+            _rendered_value = str(value) if not isinstance(value, str) else value  # noqa: F841
 
         # If command is a template string, render it with the value
         if isinstance(self.command, str) and "{" in self.command:
@@ -127,9 +128,11 @@ class ShellEffect(EffectBase, name="shell", settings=ShellEffectSettings):
 
 # === FileWriteEffect ===
 
+
 @dataclass
 class FileWriteEffectSettings:
     """Settings for FileWriteEffect."""
+
     path: str
     template: str
     append: bool = False
@@ -187,16 +190,18 @@ class FileWriteEffect(EffectBase, name="file_write", settings=FileWriteEffectSet
             content = self.template.render(value=value)
 
         # Write to file
-        mode = 'a' if self.append else 'w'
+        mode = "a" if self.append else "w"
         with open(self.path, mode) as f:
             f.write(content)
 
 
 # === OSCEffect ===
 
+
 @dataclass
 class OSCEffectSettings:
     """Settings for OSCEffect."""
+
     address: str
     port: int
     path: str
@@ -259,9 +264,11 @@ class OSCEffect(EffectBase, name="osc", settings=OSCEffectSettings):
 
 # === NotificationEffect ===
 
+
 @dataclass
 class NotificationEffectSettings:
     """Settings for NotificationEffect."""
+
     message: str
     targets: List[Dict[str, Any]]
     renderer: Optional[str | Dict[str, Any]] = None
@@ -321,9 +328,11 @@ class NotificationEffect(EffectBase, name="notification", settings=NotificationE
 
 # === SequenceEffect ===
 
+
 @dataclass
 class SequenceEffectSettings:
     """Settings for SequenceEffect."""
+
     effects: List[Dict[str, Any]]
     renderer: Optional[str | Dict[str, Any]] = None
 

@@ -7,13 +7,14 @@ Provides Rx-style observables with chainable operators for composable reactive p
 from typing import Any, Callable, Generic, TypeVar, List, Optional, Dict
 from dataclasses import dataclass
 
-T = TypeVar('T')
-U = TypeVar('U')
+T = TypeVar("T")
+U = TypeVar("U")
 
 
 @dataclass
 class ObservableSettings:
     """Base settings class for Observables. Subclasses extend this."""
+
     pass
 
 
@@ -47,7 +48,7 @@ class Observable(Generic[T]):
         self.settings = settings or ObservableSettings()
         self._subscribers: List[Callable[[T], None]] = []
 
-    def subscribe(self, callback: Callable[[T], None]) -> 'Subscription':
+    def subscribe(self, callback: Callable[[T], None]) -> "Subscription":
         """
         Subscribe to this observable with a callback.
 
@@ -83,7 +84,7 @@ class Observable(Generic[T]):
             except Exception as e:
                 print(f"Error in subscriber: {e}")
 
-    def pipe(self, *operators: 'ObservableOperator') -> 'Observable':
+    def pipe(self, *operators: "ObservableOperator") -> "Observable":
         """
         Chain operators to create a new Observable.
 
@@ -113,7 +114,7 @@ class Subscription:
         """Remove this subscription."""
         self.observable.unsubscribe(self.callback)
 
-    def __enter__(self) -> 'Subscription':
+    def __enter__(self) -> "Subscription":
         return self
 
     def __exit__(self, *_args: Any) -> None:
@@ -142,9 +143,11 @@ class ObservableOperator:
 
 # Observable Operators
 
+
 @dataclass
 class ChangedSettings(ObservableSettings):
     """Settings for Changed operator."""
+
     initial: Any = None
 
 
@@ -181,6 +184,7 @@ class Changed(ObservableOperator):
 @dataclass
 class LogSettings(ObservableSettings):
     """Settings for Log operator."""
+
     prefix: str = "Observable"
 
 
@@ -213,6 +217,7 @@ class Log(ObservableOperator):
 
 
 # Model - Container for named observables
+
 
 class Model:
     """
@@ -248,11 +253,11 @@ class Model:
     class Mutable:
         """Context manager for atomic state mutations (value items only)."""
 
-        def __init__(self, model: 'Model'):
+        def __init__(self, model: "Model"):
             self.model = model
             self.state: Dict[str, Any] = {}
 
-        def __enter__(self) -> 'Model.Mutable':
+        def __enter__(self) -> "Model.Mutable":
             # Copy current state
             self.state = dict(self.model._current_values)
             return self
@@ -277,7 +282,7 @@ class Model:
             if key not in self.model._modes:
                 raise KeyError(f"Model key '{key}' not defined")
 
-            if self.model._modes[key] != 'value':
+            if self.model._modes[key] != "value":
                 raise ValueError(f"Cannot set mode=event key '{key}' in mutable context. Use model.emit() instead.")
 
             # Type coercion
@@ -297,12 +302,12 @@ class Model:
 
     def __init__(self):
         self._raw_observables: Dict[str, Observable] = {}  # For emitting
-        self._observables: Dict[str, Observable] = {}      # For subscribing (may be wrapped)
+        self._observables: Dict[str, Observable] = {}  # For subscribing (may be wrapped)
         self._types: Dict[str, type] = {}
         self._modes: Dict[str, str] = {}
         self._current_values: Dict[str, Any] = {}  # For mode=value items
 
-    def define(self, key: str, value_type: str = 'string', mode: str = 'value', default: Any = None) -> None:
+    def define(self, key: str, value_type: str = "string", mode: str = "value", default: Any = None) -> None:
         """
         Define a model key.
 
@@ -314,10 +319,10 @@ class Model:
         """
         # Map type string to Python type
         type_map = {
-            'string': str,
-            'number': float,
-            'int': int,
-            'bool': bool,
+            "string": str,
+            "number": float,
+            "int": int,
+            "bool": bool,
         }
 
         py_type = type_map.get(value_type, str)
@@ -329,7 +334,7 @@ class Model:
         self._raw_observables[key] = raw_obs
 
         # For value mode, wrap with Changed operator and track current value
-        if mode == 'value':
+        if mode == "value":
             self._current_values[key] = default
             # Create a wrapped observable that applies Changed internally
             wrapped_obs = raw_obs.pipe(Changed(initial=default))
@@ -337,6 +342,7 @@ class Model:
             # Also subscribe to wrapped observable to track current value
             def update_current_value(value: Any) -> None:
                 self._current_values[key] = value
+
             wrapped_obs.subscribe(update_current_value)
 
             self._observables[key] = wrapped_obs
@@ -381,12 +387,12 @@ class Model:
         if key not in self._modes:
             raise KeyError(f"Model key '{key}' not defined")
 
-        if self._modes[key] != 'value':
+        if self._modes[key] != "value":
             raise ValueError(f"Cannot get_value for mode=event key '{key}'")
 
         return self._current_values.get(key)
 
-    def mutable(self) -> 'Model.Mutable':
+    def mutable(self) -> "Model.Mutable":
         """
         Create a context manager for atomic state mutations.
 
@@ -420,7 +426,7 @@ class Model:
         if key not in self._raw_observables:
             raise KeyError(f"Model key '{key}' not defined")
 
-        if self._modes[key] != 'event':
+        if self._modes[key] != "event":
             raise ValueError(f"Cannot emit on mode=value key '{key}'. Use mutable() context manager instead.")
 
         # Type coercion
@@ -457,7 +463,7 @@ class Model:
         return list(self._observables.keys())
 
     @classmethod
-    def from_dict(cls, config: Dict[str, Any]) -> 'Model':
+    def from_dict(cls, config: Dict[str, Any]) -> "Model":
         """
         Create Model from dictionary config.
 
@@ -490,9 +496,9 @@ class Model:
         model = cls()
         for key, spec in config.items():
             if isinstance(spec, dict):
-                value_type = spec.get('type', 'string')
-                mode = spec.get('mode', 'value')
-                default = spec.get('default', None)
+                value_type = spec.get("type", "string")
+                mode = spec.get("mode", "value")
+                default = spec.get("default", None)
                 model.define(key, value_type=value_type, mode=mode, default=default)
             else:
                 # Simple format: just the type as a string

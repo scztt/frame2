@@ -22,13 +22,15 @@ def tail_lines(filepath: str, num_lines=100) -> str:
     return bytes(reversed(buffer)).decode("utf-8", errors="replace")
 
 
-import inspect
-from functools import lru_cache
+import inspect  # noqa: E402
+from functools import lru_cache  # noqa: E402
+
 
 @lru_cache(maxsize=None)
 def _get_signature(func):
     """Cache inspect.signature results for speed."""
     return inspect.signature(func)
+
 
 def call_with_known_args(func, *args, **kwargs):
     """
@@ -39,9 +41,7 @@ def call_with_known_args(func, *args, **kwargs):
     params = sig.parameters
 
     # Check if the function accepts arbitrary keyword arguments (**kwargs)
-    accepts_var_kw = any(
-        p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values()
-    )
+    accepts_var_kw = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in params.values())
 
     # If it does, we can just pass everything
     if accepts_var_kw:
@@ -54,6 +54,4 @@ def call_with_known_args(func, *args, **kwargs):
         return func(*args, **filtered_kwargs)
     except TypeError as e:
         # Optional: debug fallback for ambiguous signatures
-        raise TypeError(
-            f"Error calling {func.__name__} with filtered args={args}, kwargs={filtered_kwargs}"
-        ) from e
+        raise TypeError(f"Error calling {func.__name__} with filtered args={args}, kwargs={filtered_kwargs}") from e

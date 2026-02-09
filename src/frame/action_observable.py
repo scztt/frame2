@@ -11,10 +11,11 @@ Provides Redux/Elm-style architecture with:
 from typing import TypeVar, Generic, Callable, Any, Dict, List
 from copy import deepcopy
 
-T = TypeVar('T')
+T = TypeVar("T")
 
 
 # === Actions ===
+
 
 class Action(Generic[T]):
     """Base class for state transformers."""
@@ -103,10 +104,11 @@ class PropertyAction(Action[Dict]):
 
 # === Model ===
 
+
 class Subscription:
     """Handle for unsubscribing from a Model."""
 
-    def __init__(self, model: 'Model', observer: Callable):
+    def __init__(self, model: "Model", observer: Callable):
         """
         Initialize Subscription.
 
@@ -121,7 +123,7 @@ class Subscription:
         """Remove this subscription."""
         self.model.unsubscribe(self.observer)
 
-    def __enter__(self) -> 'Subscription':
+    def __enter__(self) -> "Subscription":
         return self
 
     def __exit__(self, *args: Any) -> None:
@@ -200,6 +202,7 @@ class Model(Generic[T]):
 
 # === Observers ===
 
+
 class Observer:
     """
     Base class for callable observers.
@@ -215,7 +218,7 @@ class Observer:
         """
         raise NotImplementedError
 
-    def __rshift__(self, next_observer: 'Observer') -> 'Observer':
+    def __rshift__(self, next_observer: "Observer") -> "Observer":
         """
         Chain this observer with the next one using >> operator.
 
@@ -225,7 +228,7 @@ class Observer:
         Returns:
             The next observer (for further chaining)
         """
-        if hasattr(self, 'subscribe'):
+        if hasattr(self, "subscribe"):
             self.subscribe(next_observer)
         return next_observer
 
@@ -337,23 +340,32 @@ class LogObserver(Observer):
 
 # === Sources ===
 # Re-export sources from the new sources module
-from frame.new.sources import (
-    ShellSource, ShellSourceSettings,
-    TailSource, TailSourceSettings,
-    ScreenshotSource, ScreenshotSourceSettings,
-    OSCSource, OSCSourceSettings,
-    make_source
+from frame.new.sources import (  # noqa: F401, E402
+    ShellSource,
+    ShellSourceSettings,
+    TailSource,
+    TailSourceSettings,
+    ScreenshotSource,
+    ScreenshotSourceSettings,
+    OSCSource,
+    OSCSourceSettings,
+    make_source,
 )
 
 # === Effects ===
 # Re-export effects from the new effects module
-from frame.new.effects import (
-    ShellEffect, ShellEffectSettings,
-    FileWriteEffect, FileWriteEffectSettings,
-    OSCEffect, OSCEffectSettings,
-    NotificationEffect, NotificationEffectSettings,
-    SequenceEffect, SequenceEffectSettings,
-    make_effect
+from frame.new.effects import (  # noqa: F401, E402
+    ShellEffect,
+    ShellEffectSettings,
+    FileWriteEffect,
+    FileWriteEffectSettings,
+    OSCEffect,
+    OSCEffectSettings,
+    NotificationEffect,
+    NotificationEffectSettings,
+    SequenceEffect,
+    SequenceEffectSettings,
+    make_effect,
 )
 
 # === Config ===

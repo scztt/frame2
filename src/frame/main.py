@@ -1,8 +1,5 @@
-from functools import wraps
 import hashlib
-import json
 from typing import Any, Dict
-from uuid import uuid4
 from fastapi import FastAPI, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 import yaml
@@ -13,15 +10,11 @@ from frame.images import image_repo
 
 from collections import OrderedDict
 
-from frame.renderers import render_action, render_simple_value
+from frame.renderers import render_action
 from fastapi.responses import FileResponse
 import os
-from fastapi import Body
-from fastapi import Depends, HTTPException, status, Security
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials, OAuth2PasswordBearer
-from datetime import datetime, timedelta
+from fastapi import Depends, HTTPException, status
 import secrets
-from pydantic import BaseModel
 import logging
 
 # Configure logging
@@ -127,7 +120,7 @@ def make_endpoints():
             @app.get(endpoint_path, response_class=HTMLResponse)
             async def get_property_value(property_name=property_name):
                 queue = asyncio.Queue[Any]()
-                with config.subscribe_rendered_updates(property_name, queue) as sub:
+                with config.subscribe_rendered_updates(property_name, queue):
                     _, rendered = await queue.get()
                     return rendered
 
