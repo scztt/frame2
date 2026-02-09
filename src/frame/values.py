@@ -162,44 +162,6 @@ class Tail(ValueBase, name="tail"):
 
         return self.last_value
 
-class FileReader(ValueBase, name="file"):
-    def __init__(self, settings):
-        settings["renderer"] = settings.get("renderer", "string")
-        super().__init__(settings)
-
-        self.path = Path(settings["path"]).expanduser().absolute()
-        self.mod_time = 0
-        self.last_value = ""
-
-    async def get(self):
-        mod_time = os.path.getmtime(self.path)
-
-        if mod_time > self.mod_time:
-            self.mod_time = mod_time
-            with open(self.path, "r") as f:
-                self.last_value = f.read();
-    
-        return self.last_value
-
-class FileReader(ValueBase, name="file"):
-    def __init__(self, settings):
-        settings["renderer"] = settings.get("renderer", "string")
-        super().__init__(settings)
-
-        self.path = Path(settings["path"]).expanduser().absolute()
-        self.mod_time = 0
-        self.last_value = ""
-
-    async def get(self):
-        mod_time = os.path.getmtime(self.path)
-
-        if mod_time > self.mod_time:
-            self.mod_time = mod_time
-            with open(self.path, "r") as f:
-                self.last_value = f.read();
-    
-        return self.last_value
-
 
 class FileReader(ValueBase, name="file"):
     def __init__(self, settings):
