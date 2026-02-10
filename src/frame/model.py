@@ -122,7 +122,7 @@ class Config:
 
         return (delegates, model_order)
 
-    def parse_actions(self, action_config: Tuple[Dict[str, Any], List[Any]]):
+    def parse_actions(self, action_config: Dict[str, Any]):
         actions: Dict[str, ActionBase] = {}
         actions_order: List[str] = []
 

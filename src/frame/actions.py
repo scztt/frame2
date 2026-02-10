@@ -159,15 +159,16 @@ class SequenceAction(ActionBase, name="sequence"):
     def __init__(self, settings: Dict[str, Any], config: Config | None = None):
         super().__init__(settings)
         self.action_refs: list[str] = []
+        self.inline_actions: Dict[str, ActionBase] = {}
         for action_ref in settings["actions"]:
             if isinstance(action_ref, str):
                 # Reference to another named action
                 self.action_refs.append(action_ref)
             else:
-                # Inline action definition — instantiate it
+                # Inline action definition — owned by this sequence
                 assert config is not None, "SequenceAction with inline actions requires a config"
                 action_name = f"{self.name}_{len(self.action_refs)}"
-                make_action(config, action_name, action_ref)
+                self.inline_actions[action_name] = make_action(config, action_name, action_ref)
                 self.action_refs.append(action_name)
 
         if settings.get("renderer"):
@@ -175,7 +176,8 @@ class SequenceAction(ActionBase, name="sequence"):
 
     async def call(self, params: Dict[str, Any], get_action) -> Any:
         for ref in self.action_refs:
-            await get_action(ref).call(params, get_action)
+            action = self.inline_actions.get(ref) or get_action(ref)
+            await action.call(params, get_action)
         return None
 
 
@@ -193,8 +195,8 @@ class OSCAction(ActionBase, name="osc"):
         if self.args:
             self.client.send_message(self.path, *self.args)
         else:
-            msg = [item for pair in params.items() for item in pair]
-            self.client.send_message(self.path, msg)
+            values = list(params.values())
+            self.client.send_message(self.path, values if len(values) != 1 else values[0])
 
 
 class FileWriteAction(ActionBase, name="file_write"):
