@@ -28,18 +28,28 @@ def check_ansible_installed() -> None:
     alongside frame) is on PATH so ansible-runner can find it.
     """
     # The venv bin dir where frame (and ansible-playbook) live
-    venv_bin = str(Path(sys.executable).resolve().parent)
+    # Don't resolve() — sys.executable may be a symlink in the venv
+    # pointing to the system Python, but scripts live in the venv's bin/
+    venv_bin = str(Path(sys.executable).parent)
     if venv_bin not in os.environ.get("PATH", ""):
         os.environ["PATH"] = venv_bin + os.pathsep + os.environ.get("PATH", "")
 
     if shutil.which("ansible-playbook") is None:
         typer.echo("❌ Error: ansible-playbook not found", err=True)
         typer.echo("", err=True)
-        typer.echo("Ansible is bundled with Frame. Try reinstalling:", err=True)
-        typer.echo("  pip install --force-reinstall frame", err=True)
+        typer.echo(f"  Python:   {sys.executable}", err=True)
+        typer.echo(f"  Venv bin: {venv_bin}", err=True)
+        typer.echo(f"  PATH:     {os.environ.get('PATH', '')}", err=True)
+        # Check if ansible-playbook exists in venv but isn't executable
+        venv_ap = Path(venv_bin) / "ansible-playbook"
+        typer.echo(f"  ansible-playbook in venv: {'YES' if venv_ap.exists() else 'NO'}", err=True)
+        if not venv_ap.exists():
+            # Show what ansible-related files ARE in the venv
+            ansible_files = [f.name for f in Path(venv_bin).iterdir() if "ansible" in f.name.lower()]
+            typer.echo(f"  ansible files in venv: {ansible_files or 'none'}", err=True)
         typer.echo("", err=True)
-        typer.echo("Or install ansible directly:", err=True)
-        typer.echo("  pip install ansible", err=True)
+        typer.echo("Ansible is bundled with Frame. Try reinstalling:", err=True)
+        typer.echo(f"  {venv_bin}/pip install ansible", err=True)
         raise typer.Exit(1)
 
 
