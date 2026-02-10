@@ -158,10 +158,11 @@ class Config:
     ##########################################################################
     # ACCESS
     ##########################################################################
-    def subscribe(self, selector: Selector | str, callback: Callback) -> Trigger.Subscription:
+    def subscribe(self, selector: Selector | str, callback: Callback, pull: bool = True) -> Trigger.Subscription:
         if isinstance(selector, str):
-            asyncio.create_task(self.pull(selector))
-            return self.subscribe(lambda m: m[selector], callback)
+            if pull:
+                asyncio.create_task(self.pull(selector))
+            return self.subscribe(lambda m: m[selector], callback, pull=False)
 
         trigger = Trigger(selector)
         self.triggers.append(trigger)
@@ -213,14 +214,14 @@ class Config:
         else:
             return None
 
-    def subscribe_rendered_updates(self, property_name: str, queue: asyncio.Queue[Any]) -> Trigger.Subscription:
+    def subscribe_rendered_updates(self, property_name: str, queue: asyncio.Queue[Any], pull: bool = True) -> Trigger.Subscription:
         renderer = self.delegates[property_name].renderer
 
         def callback(value: Any):
             """Push a new value into the queue."""
             asyncio.create_task(queue.put((property_name, renderer.render_data(value))))
 
-        return self.subscribe(property_name, callback)
+        return self.subscribe(property_name, callback, pull=pull)
 
     async def get_rendered_update_stream(self):
         # yield "data: started\n\n"
@@ -240,7 +241,7 @@ class Config:
 
         queue = asyncio.Queue[Any]()
         with ExitStack() as stack:
-            [stack.enter_context(self.subscribe_rendered_updates(name, queue)) for name in self.get_properties()]
+            [stack.enter_context(self.subscribe_rendered_updates(name, queue, pull=False)) for name in self.get_properties()]
 
             while True:
                 property_name, rendered = await queue.get()
