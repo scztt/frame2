@@ -295,6 +295,7 @@ class ScreenshotSource(SourceBase, name="screenshot", settings=ScreenshotSourceS
             result = subprocess.run(
                 [
                     "screencapture",
+                    "-x",
                     "-R",
                     f"{self.x},{self.y},{self.width},{self.height}",
                     ref.path,
@@ -304,7 +305,7 @@ class ScreenshotSource(SourceBase, name="screenshot", settings=ScreenshotSourceS
             )
         else:
             # Full screen capture
-            result = subprocess.run(["screencapture", ref.path], capture_output=True, text=True)
+            result = subprocess.run(["screencapture", "-x", ref.path], capture_output=True, text=True)
 
         if result.returncode != 0:
             print(f"Screenshot failed: {result.stderr}")

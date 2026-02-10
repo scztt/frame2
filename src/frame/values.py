@@ -119,6 +119,7 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
                 await run_command(
                     [
                         "screencapture",
+                        "-x",
                         "-R",
                         f"{self.x},{self.y},{self.width},{self.height}",
                         ref.path,
@@ -126,7 +127,7 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
                     sudo=self.sudo,
                 )
             else:
-                await run_command(["screencapture", ref.path], sudo=self.sudo)
+                await run_command(["screencapture", "-x", ref.path], sudo=self.sudo)
             return ref
         except Exception as e:
             logger.warning(f"Screenshot failed (possibly missing screen recording permission): {e}")
