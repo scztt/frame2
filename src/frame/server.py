@@ -14,17 +14,25 @@ server_app = typer.Typer(help="Manage the Frame server as a background service")
 SERVICE_NAME = "com.frame.server"
 PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 DEFAULT_LOG_PATH = Path.home() / "Library" / "Logs" / "frame.log"
+DEFAULT_APP_PATH = Path("/Applications/Frame.app")
 
 
 def _get_plist_path() -> Path:
     return PLIST_DIR / f"{SERVICE_NAME}.plist"
 
 
-def _generate_plist(host: str, port: int, log_path: Path, config_path: Optional[Path] = None, sudo_password: Optional[str] = None) -> str:
-    frame_path = shutil.which("frame")
-    if not frame_path:
-        typer.echo("Error: frame not found on PATH", err=True)
-        raise typer.Exit(1)
+def _generate_plist(host: str, port: int, log_path: Path, config_path: Optional[Path] = None, sudo_password: Optional[str] = None, app_path: Optional[Path] = None) -> str:
+    if app_path:
+        executable = app_path / "Contents" / "MacOS" / "Frame"
+        if not executable.exists():
+            typer.echo(f"Error: {executable} not found. Run 'frame package' first.", err=True)
+            raise typer.Exit(1)
+        frame_path = str(executable)
+    else:
+        frame_path = shutil.which("frame")
+        if not frame_path:
+            typer.echo("Error: frame not found on PATH", err=True)
+            raise typer.Exit(1)
 
     args = [frame_path, "run-server", "--host", host, "--port", str(port)]
     if config_path:
@@ -139,6 +147,7 @@ def start(
     config: Optional[Path] = typer.Option(None, help="Path to config yaml"),
     open: bool = typer.Option(False, "--open", help="Open in browser after starting"),
     sudo_password: Optional[str] = typer.Option(None, "--sudo-password", help="Password for sudo commands"),
+    app: Optional[Path] = typer.Option(None, "--app", help="Run via Frame.app bundle for TCC permissions (default: /Applications/Frame.app)"),
 ):
     """Start the server as a background service via launchd."""
     # Always stop and clean up any existing service before starting
@@ -149,7 +158,7 @@ def start(
     if log_path.exists():
         log_path.unlink()
 
-    plist_content = _generate_plist(host, port, log_path, config, sudo_password)
+    plist_content = _generate_plist(host, port, log_path, config, sudo_password, app_path=app)
     plist_path = _get_plist_path()
     plist_path.write_text(plist_content)
 
