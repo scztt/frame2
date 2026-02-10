@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import ExitStack
 from copy import deepcopy
 from typing import Any, Callable, Dict, List, Tuple
@@ -6,6 +7,8 @@ from frame.actions import ActionBase, make_action
 from frame.parsers import register_parsers
 from frame.registry import set_defaults
 from frame.values import ValueDelegate, make_value
+
+logger = logging.getLogger(__name__)
 
 State = Dict[str, float | int | str | bool | None]
 
@@ -142,9 +145,12 @@ class Config:
         return self.Mutable(self)
 
     async def pull_task(self, key: str):
-        value = await self.delegates[key].get()
-        with self.mutable() as m:
-            m[key] = value
+        try:
+            value = await self.delegates[key].get()
+            with self.mutable() as m:
+                m[key] = value
+        except Exception as e:
+            logger.warning(f"Failed to pull '{key}': {e}")
 
     async def pull(self, *keys: str):
         await asyncio.gather(*[self.pull_task(key) for key in keys])
@@ -165,7 +171,10 @@ class Config:
         await self.pull(property_name)
         while True:
             await asyncio.sleep(seconds)
-            await self.pull(property_name)
+            try:
+                await self.pull(property_name)
+            except Exception as e:
+                logger.warning(f"Auto-update failed for '{property_name}': {e}")
 
     def auto_update(self, property_name: str, seconds: float):
         if self.update_tasks.get(property_name):

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Dict, Any, Tuple, TYPE_CHECKING
+from typing import Dict, Any, Optional, Tuple, TYPE_CHECKING
 import uuid
 
 from frame.images import ImageRef
@@ -325,7 +325,9 @@ class ImageRenderer(RendererBase, name="image"):
         super().__init__(settings)
         self.folding = settings.get("folding", True)
 
-    def render_data(self, data: ImageRef) -> str:
+    def render_data(self, data: Optional[ImageRef]) -> str:
+        if data is None:
+            return "<div class='value failure'>Screenshot unavailable (check screen recording permissions)</div>"
         return f"""
             <img
                 src='/{data.url}?{uuid.uuid4().hex}'

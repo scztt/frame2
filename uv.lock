@@ -152,6 +152,7 @@ source = { editable = "." }
 dependencies = [
     { name = "ansible-runner" },
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "jinja2" },
     { name = "python-multipart" },
     { name = "python-osc" },
@@ -177,6 +178,7 @@ dev = [
 requires-dist = [
     { name = "ansible-runner", specifier = ">=2.4.0" },
     { name = "fastapi", specifier = ">=0.115.11" },
+    { name = "httpx", specifier = ">=0.28.1" },
     { name = "jinja2", specifier = ">=3.1.6" },
     { name = "python-multipart", specifier = ">=0.0.20" },
     { name = "python-osc", specifier = ">=1.9.3" },

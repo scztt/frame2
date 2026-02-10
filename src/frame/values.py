@@ -2,6 +2,7 @@ from enum import Enum
 from typing import Any, Dict
 from pathlib import Path
 
+import logging
 from frame.images import image_repo
 from frame.parsers import make_parser
 from frame.registry import TypeRegistry
@@ -9,6 +10,8 @@ from frame.renderers import RendererBase, make_renderer
 from frame.shell import run_command, ShellError
 from frame.utility import tail_lines
 import os
+
+logger = logging.getLogger(__name__)
 
 ValueType = Enum("ValueType", [("Get", 1), ("Set", 2)])
 
@@ -111,20 +114,23 @@ class ScreenshotGetter(ValueBase, name="screenshot"):
 
     async def get(self):
         ref = image_repo.make_image_ref(self.id + ".png")
-        if (self.x is not None) and (self.y is not None) and (self.width is not None) and (self.height is not None):
-            await run_command(
-                [
-                    "screencapture",
-                    "-R",
-                    f"{self.x},{self.y},{self.width},{self.height}",
-                    ref.path,
-                ],
-                sudo=self.sudo,
-            )
+        try:
+            if (self.x is not None) and (self.y is not None) and (self.width is not None) and (self.height is not None):
+                await run_command(
+                    [
+                        "screencapture",
+                        "-R",
+                        f"{self.x},{self.y},{self.width},{self.height}",
+                        ref.path,
+                    ],
+                    sudo=self.sudo,
+                )
+            else:
+                await run_command(["screencapture", ref.path], sudo=self.sudo)
             return ref
-        else:
-            await run_command(["screencapture", ref.path], sudo=self.sudo)
-            return ref
+        except Exception as e:
+            logger.warning(f"Screenshot failed (possibly missing screen recording permission): {e}")
+            return None
 
 
 class FileGetter(ValueBase, name="file"):
