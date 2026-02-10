@@ -1,19 +1,29 @@
 ---
 # Handler for homebrew type
 # Installs packages via Homebrew package manager
+# Supports both formulae and casks:
+#   packages:
+#     - git                              # formula
+#     - { name: firefox, cask: true }    # cask
 
 - name: "Install Homebrew packages"
   become: "{{ ansible_user_id == 'root' }}"
   become_user: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
   block:
-    - name: Install packages
+    - name: "Install formula: {{ item if item is string else item.name }}"
       community.general.homebrew:
-        name: "{{ item }}"
+        name: "{{ item if item is string else item.name }}"
         state: "{{ step.state | default('present') }}"
         update_homebrew: "{{ step.update_homebrew | default(false) }}"
       loop: "{{ step.packages }}"
-      loop_control:
-        label: "{{ item }}"
+      when: item is string or not (item.cask | default(false))
+
+    - name: "Install cask: {{ item.name }}"
+      community.general.homebrew_cask:
+        name: "{{ item.name }}"
+        state: "{{ step.state | default('present') }}"
+      loop: "{{ step.packages }}"
+      when: item is mapping and item.cask | default(false)
 
     - name: Report packages installed
       debug:
