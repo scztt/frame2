@@ -137,6 +137,11 @@ def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
                 typer.echo(f"❌ Error: Entry {i} (download) missing 'dest' field", err=True)
                 raise typer.Exit(1)
 
+        elif entry_type == "pause":
+            if "prompt" not in entry:
+                typer.echo(f"❌ Error: Entry {i} (pause) missing 'prompt' field", err=True)
+                raise typer.Exit(1)
+
 
 def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
     """Extract unique handler types needed from state entries, including dependencies."""

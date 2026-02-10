@@ -1,0 +1,27 @@
+---
+# Handler for pause type
+# Pauses execution and displays a message to the user.
+# Waits for the user to press Enter before continuing.
+#
+# Required:
+#   prompt: "Message to display"
+#
+# Optional:
+#   seconds: 30                       # timeout (auto-continue after N seconds)
+#   minutes: 5                        # timeout in minutes
+
+- name: "{{ step.name | default('Manual step required') }}"
+  block:
+    - name: "{{ step.name | default('Waiting for user') }}"
+      ansible.builtin.pause:
+        prompt: |
+
+          ╔══════════════════════════════════════════════════════════════╗
+          ║  ⏸  MANUAL STEP REQUIRED                                   ║
+          ╚══════════════════════════════════════════════════════════════╝
+
+          {{ step.prompt | default('Press Enter to continue...') }}
+
+          Press Enter when ready to continue...
+        seconds: "{{ step.seconds | default(omit) }}"
+        minutes: "{{ step.minutes | default(omit) }}"

@@ -93,15 +93,11 @@ steps:
     unarchive_dest: ~/Library/Application Support/SuperCollider/Extensions2
     remove_quarantine: true
 
-  # TODO: Launch SuperCollider once and allow permissions (GUI - manual step)
-
   - name: Install TouchDesigner
     type: install_app
     remote:
       url: https://download.derivative.ca/TouchDesigner.2023.11760.arm64.dmg
       sha256: 38b925f77e3c23e15d7de25a45aa2c2a25bfd277b886de4e5a32ea3875a30f1a
-
-  # TODO: Launch TouchDesigner and register with TD Commercial Key (GUI - manual step)
 
   # Install BlackHole audio driver
   - name: Install BlackHole audio driver
@@ -127,7 +123,61 @@ steps:
       url: https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg
       dest: "{{ config.resources_dir }}/googlechrome.dmg"
 
-  # TODO: Grant Full Disk Access to SuperCollider and TouchDesigner (GUI - manual step)
+  # Frame — package as .app bundle for TCC permissions (screen recording, etc.)
+  - name: Package Frame.app
+    type: command
+    args:
+      - frame
+      - package
+      - --sign
+
+  # ============================================================================
+  # Manual Steps — macOS Privacy & Security Permissions
+  # ============================================================================
+  # These MUST be granted before daemons are started, otherwise apps will
+  # silently fail (blank screenshots, no audio input, no file access).
+
+  - name: Grant Privacy & Security permissions
+    type: pause
+    prompt: >
+      Open System Settings > Privacy & Security and grant the following:
+
+        FULL DISK ACCESS  (Privacy & Security > Full Disk Access)
+          + Frame.app
+          + SuperCollider.app
+          + TouchDesigner.app
+
+        SCREEN RECORDING  (Privacy & Security > Screen Recording)
+          + Frame.app
+
+      Tip: drag each .app from /Applications into the settings list,
+      or use the "+" button to browse.
+
+  - name: Activate TouchDesigner license
+    type: pause
+    prompt: >
+      Launch TouchDesigner once from /Applications and activate your
+      TouchDesigner Commercial license key.
+
+      Close TouchDesigner when activation is complete.
+
+  - name: Configure energy & login settings
+    type: pause
+    prompt: >
+      For unattended operation, verify these system settings:
+
+        ENERGY  (System Settings > Energy Saver / Battery)
+          - Prevent automatic sleeping when the display is off: ON
+          - Start up automatically after a power failure: ON
+
+        LOCK SCREEN  (System Settings > Lock Screen)
+          - Start Screen Saver when inactive: Never
+          - Turn display off when inactive: Never  (or a long timeout)
+
+        LOGIN  (System Settings > Users & Groups > Login Options)
+          - Automatic login: enable for this user
+
+      Skip any that are already configured or not applicable.
 
   # ============================================================================
   # PeaceCore Daemons
@@ -273,6 +323,8 @@ steps:
       - "{{ config.peacecore_root }}/CORE/daemons/peacecore.yaml"
       - --sudo-password
       - "{{ config.sudo_password }}"
+      - --app
+      - /Applications/Frame.app
 
   # Auto-kill monitor — restarts stuck sclang every 30 seconds
   # NOTE: Fixed label bug from original plist (was com.peacecore.supercollider)
@@ -285,15 +337,24 @@ steps:
     stderr_path: /var/log/sclang_monitor_error.log
     run_at_load: true
     keep_alive: false
-# ============================================================================
-# Manual Steps
-# ============================================================================
-#
-# TODO: Edit ~/Desktop/SETTINGS_LOCAL.scd
-#   1. Set footagePath to correct footage folder
-#   2. Set touchInChannel to first BlackHole channel index
-#
-# TODO: Start PeaceCore via web interface
-#   1. Open Chrome → http://0.0.0.0:8000
-#   2. Enter password: peacecore1234
-#   3. Stop PeaceCore → Start PeaceCore → wait ~60s
+
+  # ============================================================================
+  # Final Steps
+  # ============================================================================
+
+  - name: Configure SETTINGS_LOCAL
+    type: pause
+    prompt: >
+      Edit ~/Desktop/SETTINGS_LOCAL.scd:
+
+        1. Set footagePath to the correct footage folder
+        2. Set touchInChannel to the first BlackHole channel index
+
+  - name: Open Frame web interface
+    type: command
+    args:
+      - open
+      - -a
+      - Google Chrome
+      - http://0.0.0.0:8000
+    ignore_errors: true
