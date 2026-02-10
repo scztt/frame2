@@ -1,8 +1,20 @@
 ---
-# Handler for pkg_install type
+# Handler for install_pkg type
 # Installs macOS .pkg files using installer command
+#
+# Local path:
+#   path: /path/to/Package.pkg
+#
+# Remote URL:
+#   remote:
+#     url: https://example.com/Package.pkg
+#     filename: Package.pkg        # optional, overrides server-provided filename
+#     sha256: abc123...            # optional checksum
 
-- name: "Install package: {{ step.path }}"
+# ==========================================
+# LOCAL PATH (step.path is defined)
+# ==========================================
+- name: "Install package: {{ step.path if step.path is defined else '' }}"
   block:
     - name: Check if package exists
       stat:
@@ -22,3 +34,56 @@
     - name: Report installation
       debug:
         msg: "Installed package: {{ step.path | basename }}"
+  when: step.path is defined
+
+# ==========================================
+# REMOTE URL (step.remote is defined)
+# ==========================================
+
+# --- Download artifact (tagged for --artifacts-only) ---
+- name: Ensure resources directory exists
+  file:
+    path: "{{ config.resources_dir }}"
+    state: directory
+    mode: "0755"
+  tags: [artifact]
+  when: step.remote is defined
+
+# dest is always a file path so get_url skips if it already exists (force defaults to no).
+# Priority: dest (full path) > filename (basename) > URL basename.
+- name: "Download: {{ step.remote.dest | default(step.remote.filename | default(step.remote.url | basename)) | basename }}"
+  ansible.builtin.get_url:
+    url: "{{ step.remote.url }}"
+    dest: "{{ step.remote.dest | default(config.resources_dir + '/' + (step.remote.filename | default(step.remote.url | basename))) }}"
+    checksum: "{{ 'sha256:' + step.remote.sha256 if step.remote.sha256 is defined else omit }}"
+    force: false
+  register: pkg_download
+  tags: [artifact]
+  when: step.remote is defined
+
+- name: Compute SHA256 of downloaded package
+  stat:
+    path: "{{ pkg_download.dest }}"
+    checksum_algorithm: sha256
+  register: pkg_sha
+  tags: [artifact]
+  when: step.remote is defined and step.remote.sha256 is not defined
+
+- name: "SHA256: {{ pkg_sha.stat.checksum }}"
+  debug:
+    msg: "sha256: {{ pkg_sha.stat.checksum }}"
+  tags: [artifact]
+  when: step.remote is defined and step.remote.sha256 is not defined
+
+# --- Install from downloaded artifact ---
+- name: "Install package: {{ pkg_download.dest | basename }}"
+  block:
+    - name: Install downloaded package
+      command: "installer -pkg '{{ pkg_download.dest }}' -target {{ step.target | default('/') }}"
+      become: yes
+      register: install_result
+
+    - name: Report remote installation
+      debug:
+        msg: "Installed package: {{ pkg_download.dest | basename }}"
+  when: step.remote is defined

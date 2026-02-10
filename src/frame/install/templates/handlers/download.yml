@@ -6,8 +6,9 @@
 #   url: https://example.com/file.zip
 #   dest: /path/to/file.zip           # full destination path
 #
-# Optional (passed directly to get_url):
-#   checksum: sha256:abc123...        # or md5:, sha1:, etc.
+# Optional:
+#   sha256: abc123...                 # SHA256 checksum (bare hash)
+#   checksum: sha256:abc123...        # or full checksum string (md5:, sha1:, etc.)
 #   mode: '0644'
 #   force: false                      # re-download even if exists
 #   timeout: 10
@@ -30,12 +31,24 @@
       ansible.builtin.get_url:
         url: "{{ step.url }}"
         dest: "{{ step.dest }}"
-        checksum: "{{ step.checksum | default(omit) }}"
+        checksum: "{{ 'sha256:' + step.sha256 if step.sha256 is defined else step.checksum | default(omit) }}"
         mode: "{{ step.mode | default(omit) }}"
-        force: "{{ step.force | default(omit) }}"
+        force: "{{ step.force | default(false) }}"
         timeout: "{{ step.timeout | default(omit) }}"
         headers: "{{ step.headers | default(omit) }}"
       register: download_result
+
+    - name: Compute SHA256 of downloaded file
+      stat:
+        path: "{{ step.dest }}"
+        checksum_algorithm: sha256
+      register: dl_sha
+      when: step.sha256 is not defined and step.checksum is not defined
+
+    - name: "SHA256: {{ dl_sha.stat.checksum }}"
+      debug:
+        msg: "sha256: {{ dl_sha.stat.checksum }}"
+      when: step.sha256 is not defined and step.checksum is not defined
 
     - name: Ensure extraction directory exists
       file:
@@ -57,5 +70,5 @@
 
     - name: Report download
       debug:
-        msg: "Downloaded {{ step.url | basename }} to {{ step.dest }}{{ ' (extracted)' if step.unarchive | default(false) else '' }}"
+        msg: "{{ step.url | basename }} --> {{ step.dest }}{{ ' (extracted)' if step.unarchive | default(false) else '' }}"
   tags: [artifact]

@@ -150,7 +150,8 @@ def step_label(entry: Dict[str, Any]) -> str:
         filename = entry.get("url", "?").split("/")[-1]
         return f"Download: {filename}"
     elif t == "install_pkg":
-        return entry["path"].split("/")[-1]
+        source = entry.get("path", entry.get("remote", {}).get("url", "?"))
+        return source.split("/")[-1]
     else:
         return str(t)
 

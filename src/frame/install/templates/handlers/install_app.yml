@@ -8,7 +8,8 @@
 # Remote URL:
 #   remote:
 #     url: https://example.com/App.dmg
-#     sha256: abc123...
+#     filename: App.dmg              # optional, overrides server-provided filename
+#     sha256: abc123...              # optional checksum
 
 # ==========================================
 # LOCAL PATH (step.path is defined)
@@ -62,24 +63,42 @@
   file:
     path: "{{ config.resources_dir }}"
     state: directory
-    mode: '0755'
+    mode: "0755"
   tags: [artifact]
   when: step.remote is defined
 
-- name: "Download: {{ step.remote.url | basename }}"
+# dest is always a file path so get_url skips if it already exists (force defaults to no).
+# Priority: dest (full path) > filename (basename) > URL basename.
+- name: "Download: {{ step.remote.dest | default(step.remote.filename | default(step.remote.url | basename)) | basename }}"
   ansible.builtin.get_url:
     url: "{{ step.remote.url }}"
-    dest: "{{ config.resources_dir }}/{{ step.remote.url | basename }}"
+    dest: "{{ step.remote.dest | default(config.resources_dir + '/' + (step.remote.filename | default(step.remote.url | basename))) }}"
     checksum: "{{ 'sha256:' + step.remote.sha256 if step.remote.sha256 is defined else omit }}"
+    force: false
+  register: app_download
   tags: [artifact]
   when: step.remote is defined
 
+- name: Compute SHA256 of downloaded app
+  stat:
+    path: "{{ app_download.dest }}"
+    checksum_algorithm: sha256
+  register: app_sha
+  tags: [artifact]
+  when: step.remote is defined and step.remote.sha256 is not defined
+
+- name: "SHA256: {{ app_sha.stat.checksum }}"
+  debug:
+    msg: "sha256: {{ app_sha.stat.checksum }}"
+  tags: [artifact]
+  when: step.remote is defined and step.remote.sha256 is not defined
+
 # --- Install from downloaded artifact ---
-- name: "Install app from: {{ step.remote.url | basename }}"
+- name: "Install app from: {{ app_download.dest | basename }}"
   block:
     - name: Set install facts
       set_fact:
-        downloaded_path: "{{ config.resources_dir }}/{{ step.remote.url | basename }}"
+        downloaded_path: "{{ app_download.dest }}"
         target_location: "{{ step.install_location | default('/Applications') }}"
 
     - name: Check if target requires sudo
@@ -185,5 +204,5 @@
 
     - name: Report remote installation
       debug:
-        msg: "Installed app from {{ step.remote.url | basename }} to {{ target_location }}"
+        msg: "Installed app from {{ app_download.dest | basename }} to {{ target_location }}"
   when: step.remote is defined

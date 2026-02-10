@@ -3,7 +3,7 @@
 
 config:
   peacecore_root: /Volumes/PEACECORE/Installation
-  resources_dir: "{{ config.peacecore_root }}/_resources"
+  resources_dir: "{{ config.peacecore_root }}/_setup/_tools"
 
 steps:
   # ============================================================================
@@ -35,15 +35,16 @@ steps:
 
   - name: Install Wall Designer
     type: install_app
-    path: "{{ config.peacecore_root }}/_setup/_tools/Wall Designer 3.1.0.dmg"
+    remote:
+      url: https://www.datapathsoftware.com/supportdownloads/windows/driver-files/walldesigner/Wall%20Designer%203.1.0.dmg
+      sha256: b1b6c08b6f67e2e25cd8da4e1be691e86b24ee806e0ad81e242e689ba0befadc
 
-  # TODO: Open WallDesigner and configure screens (GUI - manual step)
-  # - Open DataPath Layout NY new firmware fix - resized.wdl
-  # - Send configuration to screens
-
-  - name: Install VS Code
+  # Install VSCode
+  - name: Install VSCode
     type: install_app
-    path: "{{ config.peacecore_root }}/_setup/_tools/VSCode-darwin-universal.zip"
+    remote:
+      url: https://update.code.visualstudio.com/latest/darwin-universal/stable
+      dest: "{{ config.resources_dir }}/vscode.zip"
 
   # Install VSCode SuperCollider extension
   - name: Install vscode-supercollider extension
@@ -68,7 +69,7 @@ steps:
   # Install sclang-format binary
   - name: Install sclang-format
     type: copy
-    src: "{{ config.peacecore_root }}/_setup/SuperCollider/sclang-format"
+    src: "{{ config.peacecore_root }}/_setup/_tools/sclang-format"
     dest: /Applications/sclang-format
     mode:
       user: rwx
@@ -87,6 +88,7 @@ steps:
     type: download
     url: https://github.com/supercollider/sc3-plugins/releases/download/Version-3.13.0/sc3-plugins-3.13.0-macOS.zip
     dest: "{{ config.resources_dir }}/sc3-plugins-3.13.0-macOS.zip"
+    sha256: 11f88b0bd18b973a510fc2c63f1e802413c429e435935d86d2e79e13ebfe3ec7
     unarchive: true
     unarchive_dest: ~/Library/Application Support/SuperCollider/Extensions2
     remove_quarantine: true
@@ -95,14 +97,18 @@ steps:
 
   - name: Install TouchDesigner
     type: install_app
-    path: "{{ config.peacecore_root }}/_setup/_tools/TouchDesigner.2023.11760.arm64.dmg"
+    remote:
+      url: https://download.derivative.ca/TouchDesigner.2023.11760.arm64.dmg
+      sha256: 38b925f77e3c23e15d7de25a45aa2c2a25bfd277b886de4e5a32ea3875a30f1a
 
   # TODO: Launch TouchDesigner and register with TD Commercial Key (GUI - manual step)
 
   # Install BlackHole audio driver
   - name: Install BlackHole audio driver
     type: install_pkg
-    path: "{{ config.peacecore_root }}/_setup/_tools/BlackHole2ch-0.6.0.pkg"
+    remote:
+      url: https://existential.audio/downloads/BlackHole2ch-0.6.1.pkg
+      sha256: c829afa041a9f6e1b369c01953c8f079740dd1f02421109855829edc0d3c1988
 
   # Create Audio MIDI aggregate device (Scarlett + BlackHole)
   - name: Create PeaceCore aggregate audio device
@@ -117,44 +123,11 @@ steps:
 
   - name: Install Google Chrome
     type: install_app
-    path: "{{ config.peacecore_root }}/_setup/_tools/googlechrome.dmg"
-
-  # TODO: Chrome Remote Desktop - determine if .app or .pkg format
+    remote:
+      url: https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg
+      dest: "{{ config.resources_dir }}/googlechrome.dmg"
 
   # TODO: Grant Full Disk Access to SuperCollider and TouchDesigner (GUI - manual step)
-
-  # ============================================================================
-  # Package Manager and Tools
-  # ============================================================================
-
-  # Install Homebrew (if not already installed)
-  - name: Install Homebrew
-    type: command
-    args: |
-      if ! command -v brew &> /dev/null; then
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-      else
-        echo "Homebrew already installed"
-      fi
-    ignore_errors: true
-
-  - name: Install uv
-    type: homebrew
-    packages:
-      - uv
-
-  # ============================================================================
-  # Frame Setup
-  # ============================================================================
-
-  - name: Test frame installation
-    type: command
-    args:
-      - uv
-      - run
-      - frame
-      - --help
-    show_output: true
 
   # ============================================================================
   # PeaceCore Daemons
@@ -289,28 +262,17 @@ steps:
     run_at_load: true
     keep_alive: true
 
-  # Frame — orchestration server
+  # Frame — orchestration server (installs its own launchd plist)
   - name: Frame server daemon
-    type: launchctl
-    label: com.peacecore.frame
-    program: /opt/homebrew/bin/uv
+    type: command
     args:
-      - run
       - frame
-      - run-server
+      - server
+      - start
       - --config
       - "{{ config.peacecore_root }}/CORE/daemons/peacecore.yaml"
-    working_directory: "{{ config.peacecore_root }}/frame2"
-    stdout_path: "{{ ansible_env.HOME }}/Desktop/frame_logfile.log"
-    stderr_path: "{{ ansible_env.HOME }}/Desktop/frame_error_logfile.log"
-    process_type: Interactive
-    keep_alive: true
-    # NOTE: Original plist has no RunAtLoad — defaults to false in launchd.
-    # Our template defaults to true, so explicitly set false to match.
-    run_at_load: false
-    environment:
-      # TODO: Move password to a secrets management solution
-      SUDO_PASSWORD: "1234"
+      - --sudo-password
+      - "{{ config.sudo_password }}"
 
   # Auto-kill monitor — restarts stuck sclang every 30 seconds
   # NOTE: Fixed label bug from original plist (was com.peacecore.supercollider)

@@ -97,9 +97,18 @@ def validate_state_entries(state_entries: List[Dict[str, Any]]) -> None:
                 raise typer.Exit(1)
 
         elif entry_type == "install_pkg":
-            if "path" not in entry:
-                typer.echo(f"❌ Error: Entry {i} (install_pkg) missing 'path' field", err=True)
+            has_path = "path" in entry
+            has_remote = "remote" in entry
+            if not has_path and not has_remote:
+                typer.echo(f"❌ Error: Entry {i} (install_pkg) missing 'path' or 'remote' field", err=True)
                 raise typer.Exit(1)
+            if has_remote:
+                if not isinstance(entry["remote"], dict):
+                    typer.echo(f"❌ Error: Entry {i} (install_pkg) 'remote' must be a dict with 'url'", err=True)
+                    raise typer.Exit(1)
+                if "url" not in entry["remote"]:
+                    typer.echo(f"❌ Error: Entry {i} (install_pkg) remote missing 'url' field", err=True)
+                    raise typer.Exit(1)
 
         elif entry_type == "systemsetup":
             if "items" not in entry:
@@ -203,6 +212,12 @@ def _run_with_status(
             if verbose:
                 typer.echo(f"      {status_mark} {task_name}")
 
+            # Always show debug messages (they're intentionally user-facing)
+            if not verbose and not is_failed and data.get("task_action") == "debug":
+                msg = res.get("msg", "")
+                if msg:
+                    typer.echo(f"      {msg}")
+
             # Always show failure details with full context
             if is_failed:
                 if not verbose:
@@ -214,9 +229,15 @@ def _run_with_status(
                 stdout = res.get("stdout", "").strip()
                 cmd = res.get("cmd", "")
                 rc = res.get("rc")
+                url = res.get("url", "")
+                status_code = res.get("status_code")
 
                 if msg:
                     typer.echo(typer.style(f"          Error: {msg}", fg="red"))
+                if url:
+                    typer.echo(f"          URL: {url}")
+                if status_code is not None:
+                    typer.echo(f"          HTTP status: {status_code}")
                 if cmd:
                     if isinstance(cmd, list):
                         cmd = " ".join(cmd)
@@ -359,6 +380,13 @@ def install(
         inventory_dir = ansible_dir / "inventory"
         inventory_dir.mkdir()
 
+        # Prompt for sudo password if requested (before generating playbooks
+        # so it's available as {{ config.become_password }} in templates)
+        become_password = None
+        if ask_become_pass:
+            become_password = getpass.getpass("Enter your password (for sudo): ")
+            config["sudo_password"] = become_password
+
         typer.echo("⚙️  Generating ansible playbooks...")
 
         # Generate site.yml with one include_tasks per step
@@ -394,11 +422,6 @@ def install(
         if diff:
             cmdline_parts.append("--diff")
         cmdline = " ".join(cmdline_parts) if cmdline_parts else ""
-
-        # Prompt for sudo password if requested
-        become_password = None
-        if ask_become_pass:
-            become_password = getpass.getpass("BECOME password: ")
 
         if verbose:
             typer.echo(f"   Working directory: {ansible_dir}")

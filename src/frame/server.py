@@ -20,15 +20,17 @@ def _get_plist_path() -> Path:
     return PLIST_DIR / f"{SERVICE_NAME}.plist"
 
 
-def _generate_plist(host: str, port: int, log_path: Path, config_path: Optional[Path] = None) -> str:
-    uv_path = shutil.which("uv")
-    if not uv_path:
-        typer.echo("Error: uv not found on PATH", err=True)
+def _generate_plist(host: str, port: int, log_path: Path, config_path: Optional[Path] = None, sudo_password: Optional[str] = None) -> str:
+    frame_path = shutil.which("frame")
+    if not frame_path:
+        typer.echo("Error: frame not found on PATH", err=True)
         raise typer.Exit(1)
 
-    args = [uv_path, "run", "frame", "run-server", "--host", host, "--port", str(port)]
+    args = [frame_path, "run-server", "--host", host, "--port", str(port)]
     if config_path:
         args.extend(["--config", str(config_path)])
+    if sudo_password:
+        args.extend(["--sudo-password", sudo_password])
 
     args_xml = "\n".join(f"      <string>{arg}</string>" for arg in args)
     log = str(log_path)
@@ -85,9 +87,9 @@ def _stop_service() -> bool:
     """Unload the service and remove the plist. Returns True if it was running."""
     plist_path = _get_plist_path()
     was_loaded, _ = _is_loaded()
-    if was_loaded:
-        subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
+    # Always attempt unload if plist exists (covers stale plists from previous boots)
     if plist_path.exists():
+        subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
         plist_path.unlink()
     return was_loaded
 
@@ -105,8 +107,11 @@ def run_server(
     port: int = typer.Option(8000, help="Port to bind to"),
     config: Optional[Path] = typer.Option(None, "--config", help="Path to config yaml"),
     open: bool = typer.Option(False, "--open", help="Open in browser after starting"),
+    sudo_password: Optional[str] = typer.Option(None, "--sudo-password", help="Password for sudo commands (sets SUDO_PASSWORD env var)"),
 ):
     """Run the FastAPI server in the foreground (used by launchd)."""
+    if sudo_password:
+        os.environ["SUDO_PASSWORD"] = sudo_password
     if config:
         os.environ["FRAME_CONFIG"] = str(config)
         typer.echo(f"Config: {config}")
@@ -119,6 +124,7 @@ def run_server(
         reload=True,
         reload_includes=["*.yaml", "*.py"],
         reload_dirs=["examples", "src/frame"],
+        timeout_graceful_shutdown=3,
     )
 
 
@@ -132,19 +138,18 @@ def start(
     log_path: Path = typer.Option(DEFAULT_LOG_PATH, "--log-path", help="Log file path"),
     config: Optional[Path] = typer.Option(None, help="Path to config yaml"),
     open: bool = typer.Option(False, "--open", help="Open in browser after starting"),
+    sudo_password: Optional[str] = typer.Option(None, "--sudo-password", help="Password for sudo commands"),
 ):
     """Start the server as a background service via launchd."""
-    loaded, _ = _is_loaded()
-    if loaded:
-        typer.echo("Server already running, restarting...")
-        _stop_service()
+    # Always stop and clean up any existing service before starting
+    _stop_service()
 
     PLIST_DIR.mkdir(parents=True, exist_ok=True)
     log_path.parent.mkdir(parents=True, exist_ok=True)
     if log_path.exists():
         log_path.unlink()
 
-    plist_content = _generate_plist(host, port, log_path, config)
+    plist_content = _generate_plist(host, port, log_path, config, sudo_password)
     plist_path = _get_plist_path()
     plist_path.write_text(plist_content)
 
@@ -172,20 +177,6 @@ def stop():
     else:
         typer.echo("Server was not running.")
 
-
-@server_app.command()
-def restart():
-    """Restart the background server (unload + load existing plist)."""
-    plist_path = _get_plist_path()
-    if not plist_path.exists():
-        typer.echo("No plist found. Use 'frame server start' first.", err=True)
-        raise typer.Exit(1)
-
-    loaded, _ = _is_loaded()
-    if loaded:
-        subprocess.run(["launchctl", "unload", str(plist_path)], capture_output=True)
-    subprocess.run(["launchctl", "load", str(plist_path)], capture_output=True, text=True)
-    typer.echo("Server restarted.")
 
 
 @server_app.command("status")
