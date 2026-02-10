@@ -123,19 +123,15 @@ steps:
       url: https://dl.google.com/chrome/mac/universal/stable/GGRO/googlechrome.dmg
       dest: "{{ config.resources_dir }}/googlechrome.dmg"
 
-  # Frame — package as .app bundle for TCC permissions (screen recording, etc.)
-  - name: Package Frame.app
-    type: command
-    args:
-      - frame
-      - package
-      - --sign
-
   # ============================================================================
   # Manual Steps — macOS Privacy & Security Permissions
   # ============================================================================
   # These MUST be granted before daemons are started, otherwise apps will
   # silently fail (blank screenshots, no audio input, no file access).
+  #
+  # TCC uses the Python.app bundle from Homebrew as the responsible process.
+  # The venv must be created with its python symlink pointing to
+  # .../Resources/Python.app/Contents/MacOS/Python (not .../bin/python3.x).
 
   - name: Grant Privacy & Security permissions
     type: pause
@@ -143,15 +139,15 @@ steps:
       Open System Settings > Privacy & Security and grant the following:
 
         FULL DISK ACCESS  (Privacy & Security > Full Disk Access)
-          + Frame.app
+          + Python.app  (from Homebrew — see path below)
           + SuperCollider.app
           + TouchDesigner.app
 
         SCREEN RECORDING  (Privacy & Security > Screen Recording)
-          + Frame.app
+          + Python.app
 
-      Tip: drag each .app from /Applications into the settings list,
-      or use the "+" button to browse.
+      Python.app location (use Cmd+Shift+G in the file picker):
+        /opt/homebrew/Frameworks/Python.framework/Versions/3.14/Resources/Python.app
 
   - name: Activate TouchDesigner license
     type: pause

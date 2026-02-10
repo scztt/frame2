@@ -3,12 +3,10 @@ from pathlib import Path
 
 from frame.install import install as run_install
 from frame.server import server_app, run_server
-from frame.package import package as package_cmd
 
 app_cli = typer.Typer()
 app_cli.add_typer(server_app, name="server")
 app_cli.command("run-server")(run_server)
-app_cli.command("package")(package_cmd)
 
 
 @app_cli.command()
