@@ -1,7 +1,9 @@
 """Main installer logic for Frame install command."""
 
 import getpass
+import os
 import shutil
+import sys
 import typer
 import yaml
 import ansible_runner
@@ -20,13 +22,24 @@ from .generators import (
 
 
 def check_ansible_installed() -> None:
-    """Verify ansible-playbook is available, exit with helpful message if not."""
+    """Verify ansible-playbook is available, exit with helpful message if not.
+
+    Also ensures the venv's bin directory (where ansible-playbook is installed
+    alongside frame) is on PATH so ansible-runner can find it.
+    """
+    # The venv bin dir where frame (and ansible-playbook) live
+    venv_bin = str(Path(sys.executable).resolve().parent)
+    if venv_bin not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = venv_bin + os.pathsep + os.environ.get("PATH", "")
+
     if shutil.which("ansible-playbook") is None:
         typer.echo("❌ Error: ansible-playbook not found", err=True)
         typer.echo("", err=True)
-        typer.echo("Frame requires Ansible to be installed. Install it with:", err=True)
-        typer.echo("  brew install ansible     # macOS with Homebrew", err=True)
-        typer.echo("  pip install ansible      # or via pip", err=True)
+        typer.echo("Ansible is bundled with Frame. Try reinstalling:", err=True)
+        typer.echo("  pip install --force-reinstall frame", err=True)
+        typer.echo("", err=True)
+        typer.echo("Or install ansible directly:", err=True)
+        typer.echo("  pip install ansible", err=True)
         raise typer.Exit(1)
 
 
