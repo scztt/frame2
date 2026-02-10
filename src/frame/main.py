@@ -50,7 +50,11 @@ def ordered_yaml_load(stream):
 
 app = FastAPI()
 config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
-config = Config(ordered_yaml_load(open(config_path)))
+try:
+    config = Config(ordered_yaml_load(open(config_path)))
+except Exception as e:
+    logger.fatal(f"Failed to load config from {config_path}: {e}")
+    raise SystemExit(1)
 
 
 # --- Login Page ---
