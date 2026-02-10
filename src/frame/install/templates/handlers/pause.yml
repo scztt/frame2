@@ -5,23 +5,15 @@
 #
 # Required:
 #   prompt: "Message to display"
-#
-# Compatible with ansible-runner (which suppresses ansible.builtin.pause).
-# Uses debug + read from /dev/tty to show the prompt and wait for input.
 
 - name: "{{ step.name | default('Manual step required') }}"
-  block:
-    - name: "{{ step.name | default('Manual step required') }}"
-      debug:
-        msg: |
+  ansible.builtin.pause:
+    prompt: |
 
-          ══════════════════════════════════════════════════════════════
-            MANUAL STEP REQUIRED
-          ══════════════════════════════════════════════════════════════
+      ══════════════════════════════════════════════════════════════
+        MANUAL STEP REQUIRED
+      ══════════════════════════════════════════════════════════════
 
-          {{ step.prompt | default('Press Enter to continue...') }}
+      {{ step.prompt | default('Press Enter to continue...') }}
 
-    - name: "Waiting for Enter..."
-      shell: read -p "      >>> Press ENTER when ready to continue... " < /dev/tty
-      register: pause_result
-      failed_when: false
+      >>> Press ENTER when ready to continue

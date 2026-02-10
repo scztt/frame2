@@ -179,109 +179,15 @@ def get_required_handlers(state_entries: List[Dict[str, Any]]) -> set:
 def _run_with_status(
     ansible_dir: Path,
     cmdline: str,
-    state_entries: List[Dict[str, Any]],
-    verbose: bool,
     check: bool = False,
     become_password: Optional[str] = None,
 ):
-    """Run ansible and display live step-by-step progress.
+    """Run ansible with direct terminal passthrough.
 
-    Streams results as they happen. Each step prints when it starts,
-    sub-tasks print as they complete. Failures show full error details.
+    Uses subprocess mode with stdin/stdout/stderr wired to the terminal,
+    so interactive prompts (like ansible.builtin.pause) work natively.
+    Ansible handles its own output formatting.
     """
-    current_step = [-1]
-    step_has_failed = set()
-    step_has_changed = set()
-    step_names = {step_label(e) for e in state_entries}
-    total_steps = len(state_entries)
-
-    def on_event(event):
-        event_type = event.get("event", "")
-        data = event.get("event_data", {})
-
-        # Detect step boundaries — each include_tasks fires this
-        if event_type == "playbook_on_task_start":
-            task_name = data.get("task", "")
-            if task_name in step_names:
-                current_step[0] += 1
-                idx = current_step[0]
-                label = step_label(state_entries[idx])
-                typer.echo(f"  [{idx + 1}/{total_steps}] {label}")
-            return
-
-        # Track results
-        if event_type in ("runner_on_ok", "runner_on_failed", "runner_on_skipped", "runner_item_on_ok", "runner_item_on_failed", "runner_item_on_skipped"):
-            idx = current_step[0]
-            if idx < 0 or idx >= len(state_entries):
-                return
-
-            task_name = data.get("task", "")
-            res = data.get("res", {})
-
-            # Append item label for loop tasks
-            if "item" in res:
-                item = res["item"]
-                if isinstance(item, str):
-                    task_name = f"{task_name} ({item})"
-
-            is_failed = event_type in ("runner_on_failed", "runner_item_on_failed")
-            is_changed = res.get("changed", False)
-
-            if is_failed:
-                step_has_failed.add(idx)
-                status_mark = typer.style("[!]", fg="red")
-            elif is_changed:
-                step_has_changed.add(idx)
-                status_mark = typer.style("[~]", fg="green")
-            else:
-                status_mark = typer.style("[x]", fg="green")
-
-            # Verbose: print every sub-task
-            if verbose:
-                typer.echo(f"      {status_mark} {task_name}")
-
-            # Always show debug messages (they're intentionally user-facing)
-            if not verbose and not is_failed and data.get("task_action") == "debug":
-                msg = res.get("msg", "")
-                if msg:
-                    typer.echo(f"      {msg}")
-
-            # Always show failure details with full context
-            if is_failed:
-                if not verbose:
-                    typer.echo(typer.style(f"      [!] {task_name}", fg="red"))
-
-                # Show all useful error fields
-                msg = res.get("msg", "")
-                stderr = res.get("stderr", "").strip()
-                stdout = res.get("stdout", "").strip()
-                cmd = res.get("cmd", "")
-                rc = res.get("rc")
-                url = res.get("url", "")
-                status_code = res.get("status_code")
-
-                if msg:
-                    typer.echo(typer.style(f"          Error: {msg}", fg="red"))
-                if url:
-                    typer.echo(f"          URL: {url}")
-                if status_code is not None:
-                    typer.echo(f"          HTTP status: {status_code}")
-                if cmd:
-                    if isinstance(cmd, list):
-                        cmd = " ".join(cmd)
-                    typer.echo(f"          Command: {cmd}")
-                if rc is not None:
-                    typer.echo(f"          Exit code: {rc}")
-                if stdout:
-                    typer.echo(f"          stdout: {stdout[:500]}")
-                if stderr:
-                    typer.echo(typer.style(f"          stderr: {stderr[:500]}", fg="red"))
-
-                # Show task path for debugging
-                task_path = data.get("task_path", "")
-                if task_path:
-                    typer.echo(f"          Task: {task_path}")
-
     typer.echo()
 
     # Pass become password via environment variable
@@ -293,29 +199,11 @@ def _run_with_status(
         private_data_dir=str(ansible_dir),
         playbook="site.yml",
         cmdline=cmdline or None,
-        quiet=True,
-        event_handler=on_event,
+        input_fd=sys.stdin,
+        output_fd=sys.stdout,
+        error_fd=sys.stderr,
         envvars=envvars if envvars else None,
     )
-
-    # Summary
-    typer.echo()
-    ran = current_step[0] + 1
-    ok_count = ran - len(step_has_failed)
-    failed_count = len(step_has_failed)
-    skipped_count = total_steps - ran
-
-    if failed_count == 0 and skipped_count == 0:
-        typer.echo(typer.style(f"  All {ok_count} steps completed successfully", fg="green"))
-    else:
-        parts = []
-        if ok_count > 0:
-            parts.append(typer.style(f"{ok_count} ok", fg="green"))
-        if failed_count:
-            parts.append(typer.style(f"{failed_count} failed", fg="red"))
-        if skipped_count:
-            parts.append(f"{skipped_count} skipped")
-        typer.echo("  " + " · ".join(parts))
 
     return result
 
@@ -457,7 +345,7 @@ def install(
             typer.echo("   Inventory contents:")
             typer.echo((inventory_dir / "hosts").read_text())
 
-        result = _run_with_status(ansible_dir, cmdline, state_entries, verbose, check=check, become_password=become_password)
+        result = _run_with_status(ansible_dir, cmdline, check=check, become_password=become_password)
 
         if result.status == "successful":
             typer.echo()
