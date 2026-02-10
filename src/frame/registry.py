@@ -1,7 +1,8 @@
 from copy import deepcopy
-from typing import Any, Dict, Generic, Tuple, Type
-from annotated_types import T
+from typing import Any, Dict, Generic, Tuple, Type, TypeVar
 import inspect
+
+T = TypeVar("T")
 
 
 def can_accept_kwargs(func, kwargs_dict):

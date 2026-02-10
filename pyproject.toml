@@ -1,6 +1,6 @@
 [project]
 name = "frame"
-version = "0.1.0"
+version = "0.0.1"
 description = "Provisioning, automation, and remote management for installations and exhibitions."
 authors = [{ name = "Scott Carver", email = "scott@artificia.org" }]
 requires-python = ">=3.13"
@@ -39,7 +39,7 @@ dev = [
     "dotbot>=1.21.0",
     "pylance>=0.23.2",
     "py-spy>=0.4.0",
-    "yappi>=1.6.10",
+
 ]
 
 [tool.uvicorn]
