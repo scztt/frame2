@@ -6,7 +6,6 @@ import shutil
 import sys
 import typer
 import yaml
-import ansible_runner
 from pathlib import Path
 import tempfile
 from typing import List, Dict, Any, Optional
@@ -184,28 +183,37 @@ def _run_with_status(
 ):
     """Run ansible with direct terminal passthrough.
 
-    Uses subprocess mode with stdin/stdout/stderr wired to the terminal,
-    so interactive prompts (like ansible.builtin.pause) work natively.
-    Ansible handles its own output formatting.
+    Uses ansible-runner in subprocess mode with stdin/stdout/stderr wired
+    to the terminal, so interactive prompts (like ansible.builtin.pause)
+    work natively. Ansible handles its own output formatting.
     """
+    from ansible_runner.config.runner import RunnerConfig
+    from ansible_runner import Runner
+
     typer.echo()
 
-    # Pass become password via environment variable
     envvars = {}
     if become_password:
         envvars["ANSIBLE_BECOME_PASS"] = become_password
 
-    result = ansible_runner.run(
+    rc = RunnerConfig(
         private_data_dir=str(ansible_dir),
         playbook="site.yml",
         cmdline=cmdline or None,
-        input_fd=sys.stdin,
-        output_fd=sys.stdout,
-        error_fd=sys.stderr,
         envvars=envvars if envvars else None,
     )
+    rc.prepare()
 
-    return result
+    # Switch to subprocess mode and set fd attrs directly —
+    # Runner checks runner_mode (runner.py:214) then hasattr (runner.py:215)
+    rc.runner_mode = 'subprocess'
+    rc.input_fd = sys.stdin
+    rc.output_fd = sys.stdout
+    rc.error_fd = sys.stderr
+
+    runner = Runner(rc)
+    runner.run()
+    return runner
 
 
 def install(
