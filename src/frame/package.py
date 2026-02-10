@@ -23,6 +23,8 @@ BUNDLE_NAME = "Frame"
 BUNDLE_ID = "com.frame.server"
 BUNDLE_VERSION = "1.0"
 
+ICON_FILE = "Frame.icns"
+
 INFO_PLIST = f"""\
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" \
@@ -34,6 +36,7 @@ INFO_PLIST = f"""\
   <key>CFBundleVersion</key><string>{BUNDLE_VERSION}</string>
   <key>CFBundleShortVersionString</key><string>{BUNDLE_VERSION}</string>
   <key>CFBundleExecutable</key><string>{BUNDLE_NAME}</string>
+  <key>CFBundleIconFile</key><string>{ICON_FILE}</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>LSBackgroundOnly</key><true/>
 </dict>
@@ -82,6 +85,11 @@ def package(
 
     # Write Info.plist
     (contents / "Info.plist").write_text(INFO_PLIST)
+
+    # Copy icon if available
+    icon_src = Path(__file__).parent / "static" / ICON_FILE
+    if icon_src.exists():
+        shutil.copy2(icon_src, resources_dir / ICON_FILE)
 
     # Write executable wrapper
     executable = macos_dir / BUNDLE_NAME

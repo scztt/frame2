@@ -63,6 +63,17 @@
         remote_src: yes
       when: step.unarchive | default(false)
 
+    - name: Remove macOS resource fork artifacts
+      command: "find {{ step.unarchive_dest | default(step.dest | dirname) }} -name '._*' -delete"
+      failed_when: false
+      when: step.unarchive | default(false) and ansible_os_family == 'Darwin'
+
+    - name: Remove __MACOSX metadata directory
+      file:
+        path: "{{ step.unarchive_dest | default(step.dest | dirname) }}/__MACOSX"
+        state: absent
+      when: step.unarchive | default(false)
+
     - name: Remove quarantine attribute (macOS)
       command: "xattr -d -r com.apple.quarantine {{ step.unarchive_dest | default(step.dest | dirname) if step.unarchive | default(false) else step.dest }}"
       failed_when: false
