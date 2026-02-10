@@ -2,9 +2,7 @@
 name = "frame"
 version = "0.1.0"
 description = "Provisioning, automation, and remote management for installations and exhibitions."
-authors = [
-    { name = "Scott Carver", email = "scott@artificia.org" },
-]
+authors = [{ name = "Scott Carver", email = "scott@artificia.org" }]
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.11",
@@ -15,6 +13,7 @@ dependencies = [
     "python-osc>=1.9.3",
     "python-multipart>=0.0.20",
     "ansible-runner>=2.4.0",
+    "ansible>=13.3.0",
     "pyyaml>=6.0.2",
     "httpx>=0.28.1",
 ]
