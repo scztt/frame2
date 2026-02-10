@@ -6,22 +6,22 @@
 # Required:
 #   prompt: "Message to display"
 #
-# Optional:
-#   seconds: 30                       # timeout (auto-continue after N seconds)
-#   minutes: 5                        # timeout in minutes
+# Compatible with ansible-runner (which suppresses ansible.builtin.pause).
+# Uses debug + read from /dev/tty to show the prompt and wait for input.
 
 - name: "{{ step.name | default('Manual step required') }}"
   block:
-    - name: "{{ step.name | default('Waiting for user') }}"
-      ansible.builtin.pause:
-        prompt: |
+    - name: "{{ step.name | default('Manual step required') }}"
+      debug:
+        msg: |
 
-          ╔══════════════════════════════════════════════════════════════╗
-          ║  ⏸  MANUAL STEP REQUIRED                                   ║
-          ╚══════════════════════════════════════════════════════════════╝
+          ══════════════════════════════════════════════════════════════
+            MANUAL STEP REQUIRED
+          ══════════════════════════════════════════════════════════════
 
           {{ step.prompt | default('Press Enter to continue...') }}
 
-          Press Enter when ready to continue...
-        seconds: "{{ step.seconds | default(omit) }}"
-        minutes: "{{ step.minutes | default(omit) }}"
+    - name: "Waiting for Enter..."
+      shell: read -p "      >>> Press ENTER when ready to continue... " < /dev/tty
+      register: pause_result
+      failed_when: false
