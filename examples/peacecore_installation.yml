@@ -124,30 +124,8 @@ steps:
       dest: "{{ config.resources_dir }}/googlechrome.dmg"
 
   # ============================================================================
-  # Manual Steps — macOS Privacy & Security Permissions
+  # Manual Steps
   # ============================================================================
-  # These MUST be granted before daemons are started, otherwise apps will
-  # silently fail (blank screenshots, no audio input, no file access).
-  #
-  # TCC uses the Python.app bundle from Homebrew as the responsible process.
-  # The venv must be created with its python symlink pointing to
-  # .../Resources/Python.app/Contents/MacOS/Python (not .../bin/python3.x).
-
-  - name: Grant Privacy & Security permissions
-    type: pause
-    prompt: >
-      Open System Settings > Privacy & Security and grant the following:
-
-        FULL DISK ACCESS  (Privacy & Security > Full Disk Access)
-          + Python.app  (from Homebrew — see path below)
-          + SuperCollider.app
-          + TouchDesigner.app
-
-        SCREEN RECORDING  (Privacy & Security > Screen Recording)
-          + Python.app
-
-      Python.app location (use Cmd+Shift+G in the file picker):
-        /opt/homebrew/Frameworks/Python.framework/Versions/3.14/Resources/Python.app
 
   - name: Activate TouchDesigner license
     type: pause
@@ -319,8 +297,6 @@ steps:
       - "{{ config.peacecore_root }}/CORE/daemons/peacecore.yaml"
       - --sudo-password
       - "{{ config.sudo_password }}"
-      - --app
-      - /Applications/Frame.app
 
   # Auto-kill monitor — restarts stuck sclang every 30 seconds
   # NOTE: Fixed label bug from original plist (was com.peacecore.supercollider)
