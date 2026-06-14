@@ -27,20 +27,26 @@ import secrets
 from pydantic import BaseModel
 
 
-# Shared shutdown event for SSE connections
-_shutdown_event = asyncio.Event()
+# Shared shutdown event for SSE connections — created lazily inside lifespan
+_shutdown_event: asyncio.Event | None = None
+
+endpoints_future: asyncio.Future[list[Dict[str, Any]]] | None = None
+actions_future: asyncio.Future[list[Dict[str, Any]]] | None = None
 
 
 def get_shutdown_event() -> asyncio.Event:
     """Get the shutdown event for SSE connections."""
+    assert _shutdown_event is not None
     return _shutdown_event
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager for startup/shutdown."""
-    # Startup
+    global _shutdown_event, endpoints_future, actions_future
+    _shutdown_event = asyncio.Event()
     set_shutdown_event(_shutdown_event)
+    endpoints_future, actions_future = make_endpoints()
     yield
     # Shutdown - signal all SSE connections to close
     _shutdown_event.set()
@@ -170,7 +176,7 @@ def make_endpoints():
         async def get_rendered_update_stream(_=Depends(verify_token_fail)):
             async def stream_with_shutdown():
                 async for event in config.get_rendered_update_stream():
-                    if _shutdown_event.is_set():
+                    if get_shutdown_event().is_set():
                         return
                     yield event
 
@@ -206,7 +212,6 @@ def make_endpoints():
     return endpoints_future, actions_future
 
 
-endpoints_future, actions_future = make_endpoints()
 
 
 @app.get("/style.css")
@@ -247,6 +252,7 @@ async def home(
 ):
     # Define endpoints and their display names
 
+    assert endpoints_future is not None and actions_future is not None
     endpoints = await endpoints_future
     actions = await actions_future
 
