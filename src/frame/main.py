@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 import hashlib
 from typing import Any, Dict
 from fastapi import FastAPI, Form, Request, Response
@@ -20,6 +21,17 @@ import logging
 # Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+
+
+endpoints_future: asyncio.Future[list[Dict[str, Any]]] | None = None
+actions_future: asyncio.Future[list[Dict[str, Any]]] | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    global endpoints_future, actions_future
+    endpoints_future, actions_future = make_endpoints()
+    yield
 
 
 TOKENS = set()
@@ -48,7 +60,7 @@ def ordered_yaml_load(stream):
     return yaml.load(stream, OrderedLoader)
 
 
-app = FastAPI()
+app = FastAPI(lifespan=lifespan)
 config_path = os.environ.get("FRAME_CONFIG", "src/frame/examples/example_config.yaml")
 try:
     config = Config(ordered_yaml_load(open(config_path)))
@@ -174,7 +186,6 @@ def make_endpoints():
     return endpoints_future, actions_future
 
 
-endpoints_future, actions_future = make_endpoints()
 
 
 @app.get("/style.css")
@@ -219,6 +230,7 @@ async def home(
 ):
     # Define endpoints and their display names
 
+    assert endpoints_future is not None and actions_future is not None
     endpoints = await endpoints_future
     actions = await actions_future
 
